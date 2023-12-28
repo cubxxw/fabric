@@ -75,7 +75,11 @@ func (s *Server) Start() error {
 	}
 	s.addr = listener.Addr().String()
 
-	go s.httpServer.Serve(listener)
+	go func() {
+		if err := s.httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			s.logger.Warnf("HTTP server ListenAndServe: %v", err)
+		}
+	}()
 
 	return nil
 }
@@ -115,6 +119,9 @@ func (s *Server) RegisterHandler(pattern string, handler http.Handler, secure bo
 		s.HandlerChain(
 			handler,
 			secure,
+		),
+	)
+}
 		),
 	)
 }

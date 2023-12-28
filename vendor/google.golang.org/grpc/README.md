@@ -69,7 +69,7 @@ To build Go code, there are several options:
   mod` to create aliases for golang.org packages.  In your project's directory:
 
   ```sh
-  go mod edit -replace=google.golang.org/grpc=github.com/grpc/grpc-go@latest
+  go mod edit -replace=google.golang.org/grpc=github.com/grpc/grpc-go@v1.58.3
   go mod tidy
   go mod vendor
   go build -mod=vendor
@@ -93,7 +93,6 @@ require (
     google.golang.org/grpc v1.27.0
 )
 ```
-
 #### If you are *not* using Go modules:
 
 Update the `proto` package, gRPC package, and rebuild the `.proto` files:
