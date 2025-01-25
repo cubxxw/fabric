@@ -10,12 +10,12 @@ import (
 	"runtime/debug"
 	"time"
 
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	ab "github.com/hyperledger/fabric-protos-go/orderer"
+	"github.com/hyperledger/fabric-lib-go/common/metrics"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/hyperledger/fabric/common/deliver"
-	"github.com/hyperledger/fabric/common/metrics"
 	"github.com/hyperledger/fabric/common/policies"
-	localconfig "github.com/hyperledger/fabric/orderer/common/localconfig"
+	"github.com/hyperledger/fabric/orderer/common/localconfig"
 	"github.com/hyperledger/fabric/orderer/common/msgprocessor"
 	"github.com/hyperledger/fabric/orderer/common/multichannel"
 	"github.com/hyperledger/fabric/protoutil"
@@ -28,7 +28,11 @@ type attestationserver struct {
 	*multichannel.Registrar
 }
 
-// NewServer creates an ab.AtomicBroadcastServer based on the broadcast target and ledger Reader
+// TODO This is preparation work for the BFT block puller. Right now it is used only in unit tests.
+// We need to revisit this code and redesign this concept.
+// We need to update the related unit tests.
+
+// NewAttestationService creates an ab.AtomicBroadcastServer based on the broadcast target and ledger Reader
 func NewAttestationService(
 	r *multichannel.Registrar,
 	metricsProvider metrics.Provider,

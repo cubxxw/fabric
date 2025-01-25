@@ -11,8 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/proto"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/chaincode/extcc"
 	"github.com/hyperledger/fabric/core/chaincode/lifecycle"
@@ -24,6 +23,7 @@ import (
 	"github.com/hyperledger/fabric/core/scc"
 	"github.com/hyperledger/fabric/msp"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -79,7 +79,7 @@ type ChaincodeSupport struct {
 // blocks until the peer side handler gets into ready state or encounters a fatal
 // error. If the chaincode is already running, it simply returns.
 func (cs *ChaincodeSupport) Launch(ccid string) (*Handler, error) {
-	if h := cs.HandlerRegistry.Handler(ccid); h != nil {
+	if h := cs.HandlerRegistry.Handler(ccid); h != nil && h.State() == Ready {
 		return h, nil
 	}
 

@@ -8,17 +8,16 @@ package gateway
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/gateway"
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/gateway"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/integration/channelparticipation"
 	"github.com/hyperledger/fabric/integration/nwo"
+	. "github.com/hyperledger/fabric/internal/test"
 	"github.com/hyperledger/fabric/protoutil"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -40,13 +39,13 @@ var _ = Describe("GatewayService with endorsing orgs", func() {
 
 	BeforeEach(func() {
 		var err error
-		testDir, err = ioutil.TempDir("", "gateway")
+		testDir, err = os.MkdirTemp("", "gateway")
 		Expect(err).NotTo(HaveOccurred())
 
 		client, err := docker.NewClientFromEnv()
 		Expect(err).NotTo(HaveOccurred())
 
-		config := nwo.ThreeOrgEtcdRaftNoSysChan()
+		config := nwo.ThreeOrgEtcdRaft()
 		network = nwo.New(config, testDir, client, StartPort(), components)
 
 		network.GenerateConfigTree()
@@ -160,5 +159,5 @@ func submitCheckEndorsingOrgsTransaction(ctx context.Context, client gateway.Gat
 		Message: "",
 		Payload: []uint8(expectedPayload),
 	}
-	Expect(proto.Equal(result, expectedResult)).To(BeTrue(), "Expected\n\t%#v\nto proto.Equal\n\t%#v", result, expectedResult)
+	Expect(result).To(ProtoEqual(expectedResult))
 }

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hyperledger/fabric-protos-go/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/gossip"
 	"github.com/hyperledger/fabric/gossip/comm"
 	"github.com/hyperledger/fabric/gossip/common"
 	"github.com/hyperledger/fabric/gossip/discovery"
@@ -330,7 +330,7 @@ func (p *pullMediatorImpl) SendReq(dest string, items []string, nonce uint64) {
 	p.Sndr.Send(sMsg, p.peersWithEndpoints(dest)...)
 }
 
-// typeDigster normalizes the common digest operations needed to format them
+// typedDigester normalizes the common digest operations needed to format them
 // for log messages.
 type typedDigester interface {
 	GetMsgType() gossip.PullMsgType

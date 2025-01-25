@@ -8,25 +8,25 @@ package state
 
 import (
 	"bytes"
+	crand "crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	pb "github.com/golang/protobuf/proto"
-	pcomm "github.com/hyperledger/fabric-protos-go/common"
-	proto "github.com/hyperledger/fabric-protos-go/gossip"
-	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
-	tspb "github.com/hyperledger/fabric-protos-go/transientstore"
-	"github.com/hyperledger/fabric/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	pcomm "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	proto "github.com/hyperledger/fabric-protos-go-apiv2/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/rwset"
+	tspb "github.com/hyperledger/fabric-protos-go-apiv2/transientstore"
 	"github.com/hyperledger/fabric/common/configtx/test"
 	errors2 "github.com/hyperledger/fabric/common/errors"
-	"github.com/hyperledger/fabric/common/flogging"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
 	"github.com/hyperledger/fabric/core/committer"
 	"github.com/hyperledger/fabric/core/committer/txvalidator"
 	"github.com/hyperledger/fabric/core/ledger"
@@ -53,6 +53,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	pb "google.golang.org/protobuf/proto"
 )
 
 var (
@@ -118,6 +119,12 @@ func (*cryptoServiceMock) GetPKIidOfCert(peerIdentity api.PeerIdentityType) comm
 // VerifyBlock returns nil if the block is properly signed,
 // else returns error
 func (*cryptoServiceMock) VerifyBlock(channelID common.ChannelID, seqNum uint64, signedBlock *pcomm.Block) error {
+	return nil
+}
+
+// VerifyBlockAttestation returns nil if the block attestation is properly signed,
+// else returns error
+func (*cryptoServiceMock) VerifyBlockAttestation(channelID string, signedBlock *pcomm.Block) error {
 	return nil
 }
 
@@ -225,6 +232,10 @@ func (mc *mockCommitter) LedgerHeight() (uint64, error) {
 		return args.Get(0).(uint64), nil
 	}
 	return args.Get(0).(uint64), args.Get(1).(error)
+}
+
+func (mc *mockCommitter) GetCurrentBlockHash() ([]byte, error) {
+	panic("implement me")
 }
 
 func (mc *mockCommitter) DoesPvtDataInfoExistInLedger(blkNum uint64) (bool, error) {
@@ -760,9 +771,11 @@ func TestBlockingEnqueue(t *testing.T) {
 
 	// Get a block from gossip every 1ms too
 	go func() {
-		rand.Seed(time.Now().UnixNano())
+		var seed [32]byte
+		_, _ = crand.Read(seed[:])
+		r := rand.New(rand.NewChaCha8(seed))
 		for i := 1; i <= numBlocksReceived/2; i++ {
-			blockSeq := rand.Intn(numBlocksReceived)
+			blockSeq := r.IntN(numBlocksReceived)
 			rawblock := protoutil.NewBlock(uint64(blockSeq), []byte{})
 			b, _ := pb.Marshal(rawblock)
 			block := &proto.Payload{
@@ -787,7 +800,7 @@ func TestBlockingEnqueue(t *testing.T) {
 		mc.Mock = m
 		mc.Unlock()
 		require.Equal(t, receivedBlock, uint64(receivedBlockCount))
-		if int(receivedBlockCount) == numBlocksReceived {
+		if receivedBlockCount == numBlocksReceived {
 			break
 		}
 		time.Sleep(time.Millisecond * 10)

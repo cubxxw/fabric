@@ -9,8 +9,8 @@ package ordererclient
 import (
 	"context"
 
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/orderer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/hyperledger/fabric/integration/nwo"
 	"github.com/pkg/errors"
 )
@@ -25,8 +25,7 @@ func Broadcast(n *nwo.Network, o *nwo.Orderer, env *common.Envelope) (*orderer.B
 		return nil, err
 	}
 
-	err = broadcaster.Send(env)
-	if err != nil {
+	if err = broadcaster.Send(env); err != nil {
 		return nil, err
 	}
 
@@ -48,8 +47,7 @@ func Deliver(n *nwo.Network, o *nwo.Orderer, env *common.Envelope) (*common.Bloc
 		return nil, err
 	}
 
-	err = deliverer.Send(env)
-	if err != nil {
+	if err = deliverer.Send(env); err != nil {
 		return nil, err
 	}
 

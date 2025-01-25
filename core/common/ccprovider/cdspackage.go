@@ -17,52 +17,21 @@ limitations under the License.
 package ccprovider
 
 import (
-	"bytes"
 	"fmt"
 	"hash"
-	"io/ioutil"
 	"os"
 
-	"github.com/golang/protobuf/proto"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric-lib-go/bccsp"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/proto"
 )
-
-//----- CDSData ------
-
-// CDSData is data stored in the LSCC on instantiation of a CC
-// for CDSPackage.  This needs to be serialized for ChaincodeData
-// hence the protobuf format
-type CDSData struct {
-	// CodeHash hash of CodePackage from ChaincodeDeploymentSpec
-	CodeHash []byte `protobuf:"bytes,1,opt,name=codehash,proto3"`
-
-	// MetaDataHash hash of Name and Version from ChaincodeDeploymentSpec
-	MetaDataHash []byte `protobuf:"bytes,2,opt,name=metadatahash,proto3"`
-}
-
-//----implement functions needed from proto.Message for proto's mar/unmarshal functions
-
-// Reset resets
-func (data *CDSData) Reset() { *data = CDSData{} }
-
-// String converts to string
-func (data *CDSData) String() string { return proto.CompactTextString(data) }
-
-// ProtoMessage just exists to make proto happy
-func (*CDSData) ProtoMessage() {}
-
-// Equals data equals other
-func (data *CDSData) Equals(other *CDSData) bool {
-	return other != nil && bytes.Equal(data.CodeHash, other.CodeHash) && bytes.Equal(data.MetaDataHash, other.MetaDataHash)
-}
 
 // GetHasher interface defines a subset of bccsp which contains GetHash function.
 type GetHasher interface {
 	GetHash(opts bccsp.HashOpts) (h hash.Hash, err error)
 }
 
-//--------- CDSPackage ------------
+// --------- CDSPackage ------------
 
 // CDSPackage encapsulates ChaincodeDeploymentSpec.
 type CDSPackage struct {
@@ -199,7 +168,7 @@ func (ccpack *CDSPackage) ValidateCC(ccdata *ChaincodeData) error {
 		return err
 	}
 
-	if !ccpack.data.Equals(otherdata) {
+	if !proto.Equal(ccpack.data, otherdata) {
 		return fmt.Errorf("data mismatch")
 	}
 
@@ -228,7 +197,7 @@ func (ccpack *CDSPackage) InitFromBuffer(buf []byte) (*ChaincodeData, error) {
 	return ccpack.GetChaincodeData(), nil
 }
 
-// InitFromFS returns the chaincode and its package from the file system
+// InitFromPath returns the chaincode and its package from the file system
 func (ccpack *CDSPackage) InitFromPath(ccNameVersion string, path string) ([]byte, *pb.ChaincodeDeploymentSpec, error) {
 	buf, err := GetChaincodePackageFromPath(ccNameVersion, path)
 	if err != nil {
@@ -283,7 +252,7 @@ func (ccpack *CDSPackage) PutChaincodeToFS() error {
 		return fmt.Errorf("chaincode %s exists", path)
 	}
 
-	if err := ioutil.WriteFile(path, ccpack.buf, 0o644); err != nil {
+	if err := os.WriteFile(path, ccpack.buf, 0o644); err != nil {
 		return err
 	}
 

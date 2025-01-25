@@ -10,12 +10,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
+	crand "crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"strconv"
 	"sync"
@@ -23,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	proto "github.com/hyperledger/fabric-protos-go/gossip"
-	"github.com/hyperledger/fabric/bccsp/factory"
-	"github.com/hyperledger/fabric/common/flogging"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	proto "github.com/hyperledger/fabric-protos-go-apiv2/gossip"
 	"github.com/hyperledger/fabric/gossip/api"
 	"github.com/hyperledger/fabric/gossip/api/mocks"
 	gmocks "github.com/hyperledger/fabric/gossip/comm/mocks"
@@ -41,11 +42,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
+
+var r *rand.Rand
 
 func init() {
 	util.SetupTestLogging()
-	rand.Seed(time.Now().UnixNano())
+	var seed [32]byte
+	_, _ = crand.Read(seed[:])
+	r = rand.New(rand.NewChaCha8(seed))
 	factory.InitFactories(nil)
 	naiveSec.On("OrgByPeerIdentity", mock.Anything).Return(api.OrgIdentityType{})
 }
@@ -94,6 +100,12 @@ func (*naiveSecProvider) GetPKIidOfCert(peerIdentity api.PeerIdentityType) commo
 // VerifyBlock returns nil if the block is properly signed,
 // else returns error
 func (*naiveSecProvider) VerifyBlock(channelID common.ChannelID, seqNum uint64, signedBlock *cb.Block) error {
+	return nil
+}
+
+// VerifyBlockAttestation returns nil if the block attestation is properly signed,
+// else returns error
+func (*naiveSecProvider) VerifyBlockAttestation(channelID string, signedBlock *cb.Block) error {
 	return nil
 }
 
@@ -191,7 +203,7 @@ func handshaker(port int, endpoint string, comm Comm, t *testing.T, connMutator 
 	ta := credentials.NewTLS(tlsCfg)
 	secureOpts := grpc.WithTransportCredentials(ta)
 	if connType == none {
-		secureOpts = grpc.WithInsecure()
+		secureOpts = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
 	acceptChan := comm.Accept(acceptAll)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -236,7 +248,7 @@ func handshaker(port int, endpoint string, comm Comm, t *testing.T, connMutator 
 	require.Equal(t, []byte(target), msg.GetConn().PkiId)
 	require.Equal(t, extractCertificateHashFromContext(stream.Context()), msg.GetConn().TlsCertHash)
 	msg2Send := createGossipMsg()
-	nonce := uint64(rand.Int())
+	nonce := uint64(r.Int())
 	msg2Send.Nonce = nonce
 	go stream.Send(msg2Send.Envelope)
 	return acceptChan
@@ -320,7 +332,7 @@ func TestHandshake(t *testing.T) {
 	id := []byte(endpoint)
 	idMapper := identity.NewIdentityMapper(naiveSec, id, noopPurgeIdentity, naiveSec)
 	inst, err := NewCommInstance(s, nil, idMapper, api.PeerIdentityType(endpoint), func() []grpc.DialOption {
-		return []grpc.DialOption{grpc.WithInsecure()}
+		return []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	}, naiveSec, disabledMetrics, testCommConfig)
 	go s.Serve(ll)
 	require.NoError(t, err)
@@ -329,7 +341,7 @@ func TestHandshake(t *testing.T) {
 	_, tempEndpoint, tempL := getAvailablePort(t)
 	acceptChan := handshaker(port, tempEndpoint, inst, t, mutator, none)
 	select {
-	case <-time.After(time.Duration(time.Second * 4)):
+	case <-time.After(time.Second * 4):
 		require.FailNow(t, "Didn't receive a message, seems like handshake failed")
 	case msg = <-acceptChan:
 	}
@@ -710,7 +722,7 @@ func TestResponses(t *testing.T) {
 			m.Respond(reply.GossipMessage)
 		}
 	}()
-	expectedNOnce := uint64(msg.Nonce + 1)
+	expectedNOnce := msg.Nonce + 1
 	responsesFromComm1 := comm2.Accept(acceptAll)
 
 	ticker := time.NewTicker(10 * time.Second)
@@ -1035,7 +1047,7 @@ func establishSession(t *testing.T, port int) (proto.Gossip_GossipStreamClient, 
 func createGossipMsg() *protoext.SignedGossipMessage {
 	msg, _ := protoext.NoopSign(&proto.GossipMessage{
 		Tag:   proto.GossipMessage_EMPTY,
-		Nonce: uint64(rand.Int()),
+		Nonce: uint64(r.Int()),
 		Content: &proto.GossipMessage_DataMsg{
 			DataMsg: &proto.DataMessage{},
 		},

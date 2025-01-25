@@ -11,21 +11,21 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/msp"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
 	"github.com/hyperledger/fabric/common/crypto/tlsgen"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestX509CertExpiresAt(t *testing.T) {
-	certBytes, err := ioutil.ReadFile(filepath.Join("testdata", "cert.pem"))
+	certBytes, err := os.ReadFile(filepath.Join("testdata", "cert.pem"))
 	require.NoError(t, err)
 	sId := &msp.SerializedIdentity{
 		IdBytes: certBytes,
@@ -37,7 +37,7 @@ func TestX509CertExpiresAt(t *testing.T) {
 }
 
 func TestX509InvalidCertExpiresAt(t *testing.T) {
-	certBytes, err := ioutil.ReadFile(filepath.Join("testdata", "badCert.pem"))
+	certBytes, err := os.ReadFile(filepath.Join("testdata", "badCert.pem"))
 	require.NoError(t, err)
 	sId := &msp.SerializedIdentity{
 		IdBytes: certBytes,

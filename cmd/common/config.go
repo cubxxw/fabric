@@ -12,7 +12,7 @@ import (
 	"github.com/hyperledger/fabric/cmd/common/comm"
 	"github.com/hyperledger/fabric/cmd/common/signer"
 	"github.com/pkg/errors"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // Config aggregates configuration of TLS and signing
@@ -30,7 +30,7 @@ func ConfigFromFile(file string) (Config, error) {
 	}
 	config := Config{}
 
-	if err := yaml.Unmarshal([]byte(configData), &config); err != nil {
+	if err := yaml.Unmarshal(configData, &config); err != nil {
 		return Config{}, errors.Errorf("error unmarshalling YAML file %s: %s", file, err)
 	}
 
@@ -42,7 +42,10 @@ func (c Config) ToFile(file string) error {
 	if err := validateConfig(c); err != nil {
 		return errors.Wrap(err, "config isn't valid")
 	}
-	b, _ := yaml.Marshal(c)
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal config")
+	}
 	if err := os.WriteFile(file, b, 0o600); err != nil {
 		return errors.Errorf("failed writing file %s: %v", file, err)
 	}
@@ -50,16 +53,17 @@ func (c Config) ToFile(file string) error {
 }
 
 func validateConfig(conf Config) error {
-	nonEmptyStrings := []string{
-		conf.SignerConfig.MSPID,
-		conf.SignerConfig.IdentityPath,
-		conf.SignerConfig.KeyPath,
+	nonEmptyElems := map[string]string{
+		"MSPID":        conf.SignerConfig.MSPID,
+		"IdentityPath": conf.SignerConfig.IdentityPath,
+		"KeyPath":      conf.SignerConfig.KeyPath,
 	}
 
-	for _, s := range nonEmptyStrings {
-		if s == "" {
-			return errors.New("empty string that is mandatory")
+	for key, value := range nonEmptyElems {
+		if value == "" {
+			return errors.Errorf("%s is mandatory and cannot be empty", key)
 		}
 	}
+
 	return nil
 }

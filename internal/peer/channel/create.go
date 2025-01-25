@@ -8,11 +8,10 @@ package channel
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/common/configtx"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/internal/configtxgen/encoder"
@@ -22,6 +21,7 @@ import (
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 )
 
 // ConfigTxFileNotFound channel create configuration tx file not found
@@ -72,7 +72,7 @@ func createChannelFromDefaults(cf *ChannelCmdFactory) (*cb.Envelope, error) {
 }
 
 func createChannelFromConfigTx(configTxFileName string) (*cb.Envelope, error) {
-	cftx, err := ioutil.ReadFile(configTxFileName)
+	cftx, err := os.ReadFile(configTxFileName)
 	if err != nil {
 		return nil, ConfigTxFileNotFound(err.Error())
 	}
@@ -187,7 +187,7 @@ func executeCreate(cf *ChannelCmdFactory) error {
 	if outputBlock != common.UndefinedParamValue {
 		file = outputBlock
 	}
-	err = ioutil.WriteFile(file, b, 0o644)
+	err = os.WriteFile(file, b, 0o644)
 	if err != nil {
 		return err
 	}

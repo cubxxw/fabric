@@ -8,7 +8,7 @@ package statecouchdb
 
 import (
 	"github.com/VictoriaMetrics/fastcache"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 var keySep = []byte{0x00}
@@ -63,11 +63,12 @@ func (c *cache) getState(chainID, namespace, key string) (*CacheValue, error) {
 
 	cacheKey := constructCacheKey(chainID, namespace, key)
 
-	if !cache.Has(cacheKey) {
+	valBytes, exist := cache.HasGet(nil, cacheKey)
+	if !exist {
 		return nil, nil
 	}
+
 	cacheValue := &CacheValue{}
-	valBytes := cache.Get(nil, cacheKey)
 	if err := proto.Unmarshal(valBytes, cacheValue); err != nil {
 		return nil, err
 	}

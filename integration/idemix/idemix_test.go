@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package idemix
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -36,7 +35,7 @@ var _ = Describe("EndToEnd", func() {
 
 	BeforeEach(func() {
 		var err error
-		testDir, err = ioutil.TempDir("", "idemix_e2e")
+		testDir, err = os.MkdirTemp("", "idemix_e2e")
 		Expect(err).NotTo(HaveOccurred())
 
 		client, err = docker.NewClientFromEnv()
@@ -75,7 +74,7 @@ var _ = Describe("EndToEnd", func() {
 
 	Describe("basic etcdraft network with 2 orgs", func() {
 		BeforeEach(func() {
-			network = nwo.New(nwo.BasicEtcdRaftWithIdemixNoSysChan(), testDir, client, StartPort(), components)
+			network = nwo.New(nwo.BasicEtcdRaftWithIdemix(), testDir, client, StartPort(), components)
 			network.GenerateConfigTree()
 			network.Bootstrap()
 

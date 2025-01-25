@@ -70,11 +70,12 @@ General:
 
     # Genesis method: The method by which the genesis block for the orderer
     # system channel is specified. The option can be one of:
-    #   "file" - path to a file containing the genesis block or config block of system channel
+    #   "file" - (deprecated) path to a file containing the genesis block or config block of system channel
     #   "none" - allows an orderer to start without a system channel configuration
-    GenesisMethod: file
+    GenesisMethod: none
 
     # The file containing the genesis block to use when initializing the orderer system channel
+    # (deprecated)
     GenesisFile: genesisblock
 
     # LocalMSPDir is where to find the private crypto material needed by the
@@ -219,8 +220,8 @@ Metrics:
 #
 ################################################################################
 ChannelParticipation:
-    # Channel participation API is enabled.
-    Enabled: false
+    # Channel participation API is enabled. Deprecated: must be set to true.
+    Enabled: true
 
     # The maximum size of the request body when joining a channel.
     MaxRequestBodySize: 1 MB

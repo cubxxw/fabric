@@ -14,10 +14,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/pkg/errors"
 	"go.etcd.io/etcd/client/pkg/v3/fileutil"
-	raft "go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/snap"
 	"go.etcd.io/etcd/server/v3/wal"
@@ -59,7 +59,6 @@ type RaftStorage struct {
 
 	// a queue that keeps track of indices of snapshots on disk
 	snapshotIndex []uint64
-	WALSyncC      chan struct{}
 }
 
 // CreateStorage attempts to create a storage to persist etcd/raft data.
@@ -114,7 +113,6 @@ func CreateStorage(
 		walDir:        walDir,
 		snapDir:       snapDir,
 		snapshotIndex: ListSnapshots(lg, snapDir),
-		WALSyncC:      make(chan struct{}),
 	}, nil
 }
 

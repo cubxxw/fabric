@@ -10,14 +10,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/integration/channelparticipation"
 	"github.com/hyperledger/fabric/integration/nwo"
 	"github.com/hyperledger/fabric/integration/nwo/commands"
@@ -193,6 +192,53 @@ var _ = Describe("rollback, reset, pause, resume, and unjoin peer node commands"
 		helper.assertPresentInCollectionM("marblesp", "marble2", peer)
 	})
 
+	It("change collection members and rebuild databases", func() {
+		By("Checking ledger height on each peer")
+		for _, peer := range helper.peers {
+			Expect(helper.getLedgerHeight(peer)).Should(Equal(14))
+		}
+
+		org1peer0 := setup.network.Peer("Org1", "peer0")
+		org2peer0 := setup.network.Peer("Org2", "peer0")
+		org3peer0 := setup.network.Peer("Org3", "peer0")
+
+		By("verifying marble1 to marble5 exist in collectionMarbles & collectionMarblePrivateDetails in the members")
+		for i := 1; i <= 5; i++ {
+			helper.assertPresentInCollectionM("marblesp", fmt.Sprintf("marble%d", i), org1peer0)
+			helper.assertPresentInCollectionM("marblesp", fmt.Sprintf("marble%d", i), org2peer0)
+			helper.assertPresentInCollectionMPD("marblesp", fmt.Sprintf("marble%d", i), org2peer0)
+			helper.assertPresentInCollectionMPD("marblesp", fmt.Sprintf("marble%d", i), org3peer0)
+		}
+
+		// Add org1 to collectionMarblesPrivateDetails
+		By("Updating the chaincode definition to version 2.0")
+		updatedChaincode := nwo.Chaincode{
+			Name:              "marblesp",
+			Version:           "2.0",
+			Path:              components.Build("github.com/hyperledger/fabric/integration/chaincode/marbles_private/cmd"),
+			Lang:              "binary",
+			PackageFile:       filepath.Join(setup.testDir, "marbles-pvtdata.tar.gz"),
+			Label:             "marbles-private-20",
+			SignaturePolicy:   `OR ('Org1MSP.member','Org2MSP.member', 'Org3MSP.member')`,
+			CollectionsConfig: filepath.Join("testdata", "collection_configs", "collections_config3.json"),
+			Sequence:          "2",
+		}
+
+		helper.deployChaincode(updatedChaincode)
+
+		// statedb rebuild test
+		By("Stopping peers and deleting the statedb folder on peer Org1.peer0")
+		org1peer0 = setup.network.Peer("Org1", "peer0")
+		setup.stopPeers()
+		dbPath := filepath.Join(setup.network.PeerLedgerDir(org1peer0), "stateLeveldb")
+		Expect(os.RemoveAll(dbPath)).NotTo(HaveOccurred())
+		Expect(dbPath).NotTo(BeADirectory())
+		By("Restarting the peer Org1.peer0")
+		setup.startPeers()
+		Expect(dbPath).To(BeADirectory())
+		helper.assertPresentInCollectionM("marblesp", "marble2", org1peer0)
+	})
+
 	// This test exercises peer node unjoin on the following peers:
 	// Org1.peer0 - unjoin
 	// Org2.peer0 -
@@ -269,13 +315,13 @@ type setup struct {
 
 func initThreeOrgsSetup() *setup {
 	var err error
-	testDir, err := ioutil.TempDir("", "reset-rollback")
+	testDir, err := os.MkdirTemp("", "reset-rollback")
 	Expect(err).NotTo(HaveOccurred())
 
 	client, err := docker.NewClientFromEnv()
 	Expect(err).NotTo(HaveOccurred())
 
-	config := nwo.ThreeOrgEtcdRaftNoSysChan()
+	config := nwo.ThreeOrgEtcdRaft()
 	// disable all anchor peers
 	for _, p := range config.Peers {
 		for _, pc := range p.Channels {
@@ -524,6 +570,20 @@ func (th *testHelper) assertPresentInCollectionM(chaincodeName, marbleName strin
 	expectedMsg := fmt.Sprintf(`{"docType":"marble","name":"%s"`, marbleName)
 	for _, peer := range peerList {
 		th.queryChaincode(peer, command, expectedMsg, true)
+	}
+}
+
+// assertAbsentInCollectionM asserts that the private data for given marble is present in collection
+// 'readMarble' at the given peers
+func (th *testHelper) assertAbsentInCollectionM(chaincodeName, marbleName string, peerList ...*nwo.Peer) {
+	command := commands.ChaincodeQuery{
+		ChannelID: th.channelID,
+		Name:      chaincodeName,
+		Ctor:      fmt.Sprintf(`{"Args":["readMarble","%s"]}`, marbleName),
+	}
+	expectedMsg := fmt.Sprintf(`{"docType":"marble","name":"%s"`, marbleName)
+	for _, peer := range peerList {
+		th.queryChaincode(peer, command, expectedMsg, false)
 	}
 }
 

@@ -4,8 +4,8 @@ package mock
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-chaincode-go/shim"
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-chaincode-go/v2/shim"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -45,6 +45,16 @@ type ChaincodeStub struct {
 		result1 error
 	}
 	delStateReturnsOnCall map[int]struct {
+		result1 error
+	}
+	FinishWriteBatchStub        func() error
+	finishWriteBatchMutex       sync.RWMutex
+	finishWriteBatchArgsForCall []struct {
+	}
+	finishWriteBatchReturns struct {
+		result1 error
+	}
+	finishWriteBatchReturnsOnCall map[int]struct {
 		result1 error
 	}
 	GetArgsStub        func() [][]byte
@@ -400,7 +410,7 @@ type ChaincodeStub struct {
 		result1 *timestamppb.Timestamp
 		result2 error
 	}
-	InvokeChaincodeStub        func(string, [][]byte, string) peer.Response
+	InvokeChaincodeStub        func(string, [][]byte, string) *peer.Response
 	invokeChaincodeMutex       sync.RWMutex
 	invokeChaincodeArgsForCall []struct {
 		arg1 string
@@ -408,10 +418,10 @@ type ChaincodeStub struct {
 		arg3 string
 	}
 	invokeChaincodeReturns struct {
-		result1 peer.Response
+		result1 *peer.Response
 	}
 	invokeChaincodeReturnsOnCall map[int]struct {
-		result1 peer.Response
+		result1 *peer.Response
 	}
 	PurgePrivateDataStub        func(string, string) error
 	purgePrivateDataMutex       sync.RWMutex
@@ -501,6 +511,10 @@ type ChaincodeStub struct {
 		result1 string
 		result2 []string
 		result3 error
+	}
+	StartWriteBatchStub        func()
+	startWriteBatchMutex       sync.RWMutex
+	startWriteBatchArgsForCall []struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
@@ -695,6 +709,59 @@ func (fake *ChaincodeStub) DelStateReturnsOnCall(i int, result1 error) {
 		})
 	}
 	fake.delStateReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *ChaincodeStub) FinishWriteBatch() error {
+	fake.finishWriteBatchMutex.Lock()
+	ret, specificReturn := fake.finishWriteBatchReturnsOnCall[len(fake.finishWriteBatchArgsForCall)]
+	fake.finishWriteBatchArgsForCall = append(fake.finishWriteBatchArgsForCall, struct {
+	}{})
+	stub := fake.FinishWriteBatchStub
+	fakeReturns := fake.finishWriteBatchReturns
+	fake.recordInvocation("FinishWriteBatch", []interface{}{})
+	fake.finishWriteBatchMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *ChaincodeStub) FinishWriteBatchCallCount() int {
+	fake.finishWriteBatchMutex.RLock()
+	defer fake.finishWriteBatchMutex.RUnlock()
+	return len(fake.finishWriteBatchArgsForCall)
+}
+
+func (fake *ChaincodeStub) FinishWriteBatchCalls(stub func() error) {
+	fake.finishWriteBatchMutex.Lock()
+	defer fake.finishWriteBatchMutex.Unlock()
+	fake.FinishWriteBatchStub = stub
+}
+
+func (fake *ChaincodeStub) FinishWriteBatchReturns(result1 error) {
+	fake.finishWriteBatchMutex.Lock()
+	defer fake.finishWriteBatchMutex.Unlock()
+	fake.FinishWriteBatchStub = nil
+	fake.finishWriteBatchReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *ChaincodeStub) FinishWriteBatchReturnsOnCall(i int, result1 error) {
+	fake.finishWriteBatchMutex.Lock()
+	defer fake.finishWriteBatchMutex.Unlock()
+	fake.FinishWriteBatchStub = nil
+	if fake.finishWriteBatchReturnsOnCall == nil {
+		fake.finishWriteBatchReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.finishWriteBatchReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }
@@ -2358,7 +2425,7 @@ func (fake *ChaincodeStub) GetTxTimestampReturnsOnCall(i int, result1 *timestamp
 	}{result1, result2}
 }
 
-func (fake *ChaincodeStub) InvokeChaincode(arg1 string, arg2 [][]byte, arg3 string) peer.Response {
+func (fake *ChaincodeStub) InvokeChaincode(arg1 string, arg2 [][]byte, arg3 string) *peer.Response {
 	var arg2Copy [][]byte
 	if arg2 != nil {
 		arg2Copy = make([][]byte, len(arg2))
@@ -2390,7 +2457,7 @@ func (fake *ChaincodeStub) InvokeChaincodeCallCount() int {
 	return len(fake.invokeChaincodeArgsForCall)
 }
 
-func (fake *ChaincodeStub) InvokeChaincodeCalls(stub func(string, [][]byte, string) peer.Response) {
+func (fake *ChaincodeStub) InvokeChaincodeCalls(stub func(string, [][]byte, string) *peer.Response) {
 	fake.invokeChaincodeMutex.Lock()
 	defer fake.invokeChaincodeMutex.Unlock()
 	fake.InvokeChaincodeStub = stub
@@ -2403,26 +2470,26 @@ func (fake *ChaincodeStub) InvokeChaincodeArgsForCall(i int) (string, [][]byte, 
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *ChaincodeStub) InvokeChaincodeReturns(result1 peer.Response) {
+func (fake *ChaincodeStub) InvokeChaincodeReturns(result1 *peer.Response) {
 	fake.invokeChaincodeMutex.Lock()
 	defer fake.invokeChaincodeMutex.Unlock()
 	fake.InvokeChaincodeStub = nil
 	fake.invokeChaincodeReturns = struct {
-		result1 peer.Response
+		result1 *peer.Response
 	}{result1}
 }
 
-func (fake *ChaincodeStub) InvokeChaincodeReturnsOnCall(i int, result1 peer.Response) {
+func (fake *ChaincodeStub) InvokeChaincodeReturnsOnCall(i int, result1 *peer.Response) {
 	fake.invokeChaincodeMutex.Lock()
 	defer fake.invokeChaincodeMutex.Unlock()
 	fake.InvokeChaincodeStub = nil
 	if fake.invokeChaincodeReturnsOnCall == nil {
 		fake.invokeChaincodeReturnsOnCall = make(map[int]struct {
-			result1 peer.Response
+			result1 *peer.Response
 		})
 	}
 	fake.invokeChaincodeReturnsOnCall[i] = struct {
-		result1 peer.Response
+		result1 *peer.Response
 	}{result1}
 }
 
@@ -2892,6 +2959,30 @@ func (fake *ChaincodeStub) SplitCompositeKeyReturnsOnCall(i int, result1 string,
 	}{result1, result2, result3}
 }
 
+func (fake *ChaincodeStub) StartWriteBatch() {
+	fake.startWriteBatchMutex.Lock()
+	fake.startWriteBatchArgsForCall = append(fake.startWriteBatchArgsForCall, struct {
+	}{})
+	stub := fake.StartWriteBatchStub
+	fake.recordInvocation("StartWriteBatch", []interface{}{})
+	fake.startWriteBatchMutex.Unlock()
+	if stub != nil {
+		fake.StartWriteBatchStub()
+	}
+}
+
+func (fake *ChaincodeStub) StartWriteBatchCallCount() int {
+	fake.startWriteBatchMutex.RLock()
+	defer fake.startWriteBatchMutex.RUnlock()
+	return len(fake.startWriteBatchArgsForCall)
+}
+
+func (fake *ChaincodeStub) StartWriteBatchCalls(stub func()) {
+	fake.startWriteBatchMutex.Lock()
+	defer fake.startWriteBatchMutex.Unlock()
+	fake.StartWriteBatchStub = stub
+}
+
 func (fake *ChaincodeStub) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -2901,6 +2992,8 @@ func (fake *ChaincodeStub) Invocations() map[string][][]interface{} {
 	defer fake.delPrivateDataMutex.RUnlock()
 	fake.delStateMutex.RLock()
 	defer fake.delStateMutex.RUnlock()
+	fake.finishWriteBatchMutex.RLock()
+	defer fake.finishWriteBatchMutex.RUnlock()
 	fake.getArgsMutex.RLock()
 	defer fake.getArgsMutex.RUnlock()
 	fake.getArgsSliceMutex.RLock()
@@ -2971,6 +3064,8 @@ func (fake *ChaincodeStub) Invocations() map[string][][]interface{} {
 	defer fake.setStateValidationParameterMutex.RUnlock()
 	fake.splitCompositeKeyMutex.RLock()
 	defer fake.splitCompositeKeyMutex.RUnlock()
+	fake.startWriteBatchMutex.RLock()
+	defer fake.startWriteBatchMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
@@ -2989,5 +3084,3 @@ func (fake *ChaincodeStub) recordInvocation(key string, args []interface{}) {
 	}
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
-
-var _ shim.ChaincodeStubInterface = new(ChaincodeStub)

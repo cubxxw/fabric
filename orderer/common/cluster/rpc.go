@@ -12,14 +12,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hyperledger/fabric-protos-go/orderer"
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 )
 
-//go:generate mockery -dir . -name StepClient -case underscore -output ./mocks/
+//go:generate mockery --dir . --name StepClient --case underscore --output ./mocks/
 
 // StepClient defines a client that sends and receives Step requests and responses.
 type StepClient interface {
@@ -28,7 +28,7 @@ type StepClient interface {
 	grpc.ClientStream
 }
 
-//go:generate mockery -dir . -name ClusterClient -case underscore -output ./mocks/
+//go:generate mockery --dir . --name ClusterClient --case underscore --output ./mocks/
 
 // ClusterClient creates streams that point to a remote cluster member.
 type ClusterClient interface {

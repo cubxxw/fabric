@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	ab "github.com/hyperledger/fabric-protos-go/orderer"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/hyperledger/fabric/core/config/configtest"
 	"github.com/hyperledger/fabric/internal/peer/common"
 	"github.com/hyperledger/fabric/internal/peer/common/mock"
@@ -27,8 +27,7 @@ func TestFetch(t *testing.T) {
 	defer resetFlags()
 	InitMSP()
 	resetFlags()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 
@@ -111,8 +110,7 @@ func TestFetchNilCF(t *testing.T) {
 
 	InitMSP()
 	resetFlags()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 	viper.Set("peer.client.connTimeout", 10*time.Millisecond)

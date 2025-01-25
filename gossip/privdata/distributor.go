@@ -8,17 +8,17 @@ package privdata
 
 import (
 	"bytes"
+	crand "crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	protosgossip "github.com/hyperledger/fabric-protos-go/gossip"
-	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
-	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric-protos-go/transientstore"
+	protosgossip "github.com/hyperledger/fabric-protos-go-apiv2/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/rwset"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/transientstore"
 	"github.com/hyperledger/fabric/core/common/privdata"
 	"github.com/hyperledger/fabric/gossip/api"
 	gossipCommon "github.com/hyperledger/fabric/gossip/common"
@@ -31,6 +31,7 @@ import (
 	"github.com/hyperledger/fabric/msp"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 // gossipAdapter an adapter for API's required from gossip module
@@ -217,7 +218,7 @@ func (d *distributorImpl) disseminationPlanForMsg(colAP privdata.CollectionAcces
 		return colFilter(protoutil.SignedData{
 			Data:      signature.Message,
 			Signature: signature.Signature,
-			Identity:  []byte(signature.PeerIdentity),
+			Identity:  signature.PeerIdentity,
 		})
 	})
 	if err != nil {
@@ -256,7 +257,9 @@ func (d *distributorImpl) disseminationPlanForMsg(colAP privdata.CollectionAcces
 	remainingPeersAcrossOrgs := []api.PeerIdentityInfo{}
 	selectedPeerEndpointsForDebug := []string{}
 
-	rand.Seed(time.Now().Unix())
+	var seed [32]byte
+	_, _ = crand.Read(seed[:])
+	r := rand.New(rand.NewChaCha8(seed))
 
 	// PHASE 1 - Select one peer from each eligible org
 	if maximumPeerRemainingCount > 0 {
@@ -269,7 +272,7 @@ func (d *distributorImpl) disseminationPlanForMsg(colAP privdata.CollectionAcces
 				acksRequired = 0
 			}
 
-			selectedPeerIndex := rand.Intn(len(selectionPeersForOrg))
+			selectedPeerIndex := r.IntN(len(selectionPeersForOrg))
 			peer2SendPerOrg := selectionPeersForOrg[selectedPeerIndex]
 			selectedPeerEndpointsForDebug = append(selectedPeerEndpointsForDebug, peerEndpoints[string(peer2SendPerOrg.PKIId)])
 			sc := gossipgossip.SendCriteria{
@@ -322,7 +325,7 @@ func (d *distributorImpl) disseminationPlanForMsg(colAP privdata.CollectionAcces
 		if requiredPeerRemainingCount == 0 {
 			required = 0
 		}
-		selectedPeerIndex := rand.Intn(len(remainingPeersAcrossOrgs))
+		selectedPeerIndex := r.IntN(len(remainingPeersAcrossOrgs))
 		peer2Send := remainingPeersAcrossOrgs[selectedPeerIndex]
 		selectedPeerEndpointsForDebug = append(selectedPeerEndpointsForDebug, peerEndpoints[string(peer2Send.PKIId)])
 		sc := gossipgossip.SendCriteria{

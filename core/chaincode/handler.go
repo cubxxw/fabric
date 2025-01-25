@@ -14,10 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/channelconfig"
-	"github.com/hyperledger/fabric/common/flogging"
 	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/core/aclmgmt/resources"
 	"github.com/hyperledger/fabric/core/common/ccprovider"
@@ -27,6 +26,7 @@ import (
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/hyperledger/fabric/core/scc"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 var chaincodeLogger = flogging.MustGetLogger("chaincode")
@@ -131,6 +131,8 @@ type Handler struct {
 	// Metrics holds chaincode handler metrics
 	Metrics *HandlerMetrics
 
+	// stateLock is used to read and set State.
+	stateLock sync.RWMutex
 	// state holds the current handler state. It will be created, established, or
 	// ready.
 	state State
@@ -152,19 +154,23 @@ type Handler struct {
 
 // handleMessage is called by ProcessStream to dispatch messages.
 func (h *Handler) handleMessage(msg *pb.ChaincodeMessage) error {
-	chaincodeLogger.Debugf("[%s] Fabric side handling ChaincodeMessage of type: %s in state %s", shorttxid(msg.Txid), msg.Type, h.state)
+	h.stateLock.RLock()
+	state := h.state
+	h.stateLock.RUnlock()
+
+	chaincodeLogger.Debugf("[%s] Fabric side handling ChaincodeMessage of type: %s in state %s", shorttxid(msg.Txid), msg.Type, state)
 
 	if msg.Type == pb.ChaincodeMessage_KEEPALIVE {
 		return nil
 	}
 
-	switch h.state {
+	switch state {
 	case Created:
 		return h.handleMessageCreatedState(msg)
 	case Ready:
 		return h.handleMessageReadyState(msg)
 	default:
-		return errors.Errorf("handle message: invalid state %s for transaction %s", h.state, msg.Txid)
+		return errors.Errorf("handle message: invalid state %s for transaction %s", state, msg.Txid)
 	}
 }
 
@@ -443,7 +449,9 @@ func (h *Handler) sendReady() error {
 		return err
 	}
 
+	h.stateLock.Lock()
 	h.state = Ready
+	h.stateLock.Unlock()
 
 	chaincodeLogger.Debugf("Changed to state ready for chaincode %s", h.chaincodeID)
 
@@ -466,9 +474,13 @@ func (h *Handler) notifyRegistry(err error) {
 	h.Registry.Ready(h.chaincodeID)
 }
 
-// handleRegister is invoked when chaincode tries to register.
+// HandleRegister is invoked when chaincode tries to register.
 func (h *Handler) HandleRegister(msg *pb.ChaincodeMessage) {
-	chaincodeLogger.Debugf("Received %s in state %s", msg.Type, h.state)
+	h.stateLock.RLock()
+	state := h.state
+	h.stateLock.RUnlock()
+
+	chaincodeLogger.Debugf("Received %s in state %s", msg.Type, state)
 	chaincodeID := &pb.ChaincodeID{}
 	err := proto.Unmarshal(msg.Payload, chaincodeID)
 	if err != nil {
@@ -498,7 +510,9 @@ func (h *Handler) HandleRegister(msg *pb.ChaincodeMessage) {
 		return
 	}
 
+	h.stateLock.Lock()
 	h.state = Established
+	h.stateLock.Unlock()
 
 	chaincodeLogger.Debugf("Changed state to established for %s", h.chaincodeID)
 
@@ -768,6 +782,10 @@ func (h *Handler) HandleGetStateByRange(msg *pb.ChaincodeMessage, txContext *Tra
 		txContext.CleanupQueryContext(iterID)
 		return nil, errors.WithStack(err)
 	}
+	if payload == nil {
+		txContext.CleanupQueryContext(iterID)
+		return nil, errors.New("marshal failed: proto: Marshal called with nil")
+	}
 
 	payloadBytes, err := proto.Marshal(payload)
 	if err != nil {
@@ -798,6 +816,10 @@ func (h *Handler) HandleQueryStateNext(msg *pb.ChaincodeMessage, txContext *Tran
 	if err != nil {
 		txContext.CleanupQueryContext(queryStateNext.Id)
 		return nil, errors.WithStack(err)
+	}
+	if payload == nil {
+		txContext.CleanupQueryContext(queryStateNext.Id)
+		return nil, errors.New("marshal failed: proto: Marshal called with nil")
 	}
 
 	payloadBytes, err := proto.Marshal(payload)
@@ -878,6 +900,10 @@ func (h *Handler) HandleGetQueryResult(msg *pb.ChaincodeMessage, txContext *Tran
 		txContext.CleanupQueryContext(iterID)
 		return nil, errors.WithStack(err)
 	}
+	if payload == nil {
+		txContext.CleanupQueryContext(iterID)
+		return nil, errors.New("marshal failed: proto: Marshal called with nil")
+	}
 
 	payloadBytes, err := proto.Marshal(payload)
 	if err != nil {
@@ -915,6 +941,10 @@ func (h *Handler) HandleGetHistoryForKey(msg *pb.ChaincodeMessage, txContext *Tr
 	if err != nil {
 		txContext.CleanupQueryContext(iterID)
 		return nil, errors.WithStack(err)
+	}
+	if payload == nil {
+		txContext.CleanupQueryContext(iterID)
+		return nil, errors.New("marshal failed: proto: Marshal called with nil")
 	}
 
 	payloadBytes, err := proto.Marshal(payload)
@@ -958,7 +988,7 @@ func getQueryMetadataFromBytes(metadataBytes []byte) (*pb.QueryMetadata, error) 
 func (h *Handler) calculateTotalReturnLimit(metadata *pb.QueryMetadata) int32 {
 	totalReturnLimit := int32(h.TotalQueryLimit)
 	if metadata != nil {
-		pageSize := int32(metadata.PageSize)
+		pageSize := metadata.PageSize
 		if pageSize > 0 && pageSize < totalReturnLimit {
 			totalReturnLimit = pageSize
 		}
@@ -1194,6 +1224,9 @@ func (h *Handler) HandleInvokeChaincode(msg *pb.ChaincodeMessage, txContext *Tra
 	if err != nil {
 		return nil, errors.Wrap(err, "execute failed")
 	}
+	if responseMessage == nil {
+		return nil, errors.New("marshal failed: proto: Marshal called with nil")
+	}
 
 	// payload is marshalled and sent to the calling chaincode's shim which unmarshals and
 	// sends it to chaincode
@@ -1210,7 +1243,7 @@ func (h *Handler) Execute(txParams *ccprovider.TransactionParams, namespace stri
 	defer chaincodeLogger.Debugf("Exit")
 
 	txParams.CollectionStore = h.getCollectionStore(msg.ChannelId)
-	txParams.IsInitTransaction = (msg.Type == pb.ChaincodeMessage_INIT)
+	txParams.IsInitTransaction = msg.Type == pb.ChaincodeMessage_INIT
 	txParams.NamespaceID = namespace
 
 	txctx, err := h.TXContexts.Create(txParams)
@@ -1260,8 +1293,13 @@ func (h *Handler) getCollectionStore(channelID string) privdata.CollectionStore 
 	)
 }
 
-func (h *Handler) State() State { return h.state }
-func (h *Handler) Close()       { h.TXContexts.Close() }
+func (h *Handler) State() State {
+	h.stateLock.RLock()
+	defer h.stateLock.RUnlock()
+
+	return h.state
+}
+func (h *Handler) Close() { h.TXContexts.Close() }
 
 type State int
 

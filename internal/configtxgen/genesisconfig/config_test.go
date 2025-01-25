@@ -9,15 +9,14 @@ package genesisconfig
 import (
 	"testing"
 
-	"github.com/hyperledger/fabric-protos-go/orderer/etcdraft"
+	"github.com/hyperledger/fabric-protos-go-apiv2/orderer/etcdraft"
 	"github.com/hyperledger/fabric/common/viperutil"
 	"github.com/hyperledger/fabric/core/config/configtest"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLoadProfile(t *testing.T) {
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	pNames := []string{
 		SampleDevModeSoloProfile,
@@ -53,8 +52,7 @@ func TestLoadProfileWithPath(t *testing.T) {
 }
 
 func TestLoadTopLevel(t *testing.T) {
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	topLevel := LoadTopLevel()
 	require.NotNil(t, topLevel.Application, "application should not be nil")
@@ -76,8 +74,7 @@ func TestLoadTopLevelWithPath(t *testing.T) {
 }
 
 func TestConsensusSpecificInit(t *testing.T) {
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	devConfigDir := configtest.GetDevConfigDir()
 
@@ -260,8 +257,7 @@ func TestConsensusSpecificInit(t *testing.T) {
 }
 
 func TestLoadConfigCache(t *testing.T) {
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	cfg := viperutil.New()
 	devConfigDir := configtest.GetDevConfigDir()

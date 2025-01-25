@@ -15,16 +15,15 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
-	proto "github.com/hyperledger/fabric-protos-go/gossip"
-	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
-	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
-	mspproto "github.com/hyperledger/fabric-protos-go/msp"
-	"github.com/hyperledger/fabric-protos-go/peer"
-	tspb "github.com/hyperledger/fabric-protos-go/transientstore"
-	"github.com/hyperledger/fabric/bccsp/factory"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	proto "github.com/hyperledger/fabric-protos-go-apiv2/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/rwset"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/rwset/kvrwset"
+	mspproto "github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	tspb "github.com/hyperledger/fabric-protos-go-apiv2/transientstore"
 	util2 "github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/common/privdata"
 	"github.com/hyperledger/fabric/core/ledger"
@@ -41,6 +40,7 @@ import (
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	pb "google.golang.org/protobuf/proto"
 )
 
 var testConfig = CoordinatorConfig{
@@ -141,7 +141,7 @@ func (f *fetcherMock) fetch(dig2src dig2sources) (*privdatacommon.FetchedPvtData
 			uniqueEndorsements[string(endorsement.Endorser)] = struct{}{}
 		}
 	}
-	require.True(f.t, digests(f.expectedDigests).Equal(digests(dig2src.keys())))
+	require.True(f.t, digests(f.expectedDigests).Equal(dig2src.keys()))
 	require.Equal(f.t, len(f.expectedEndorsers), len(uniqueEndorsements))
 	args := f.Called(dig2src)
 	if args.Get(1) == nil {

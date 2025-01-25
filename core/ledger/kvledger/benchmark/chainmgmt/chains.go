@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/common/configtx/test"
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/hyperledger/fabric/core/ledger/ledgermgmt"
@@ -85,7 +85,7 @@ func (m *chainsMgr) createOrOpenChains() []*Chain {
 		}
 
 	default:
-		panic(fmt.Errorf("unknown chain init opeartion"))
+		panic(fmt.Errorf("unknown chain init operation"))
 	}
 	return m.chains()
 }

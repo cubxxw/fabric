@@ -13,11 +13,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/hyperledger/fabric-protos-go/peer"
-
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/discovery"
-	"github.com/hyperledger/fabric-protos-go/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/discovery"
+	"github.com/hyperledger/fabric-protos-go-apiv2/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/gossip/api"
 	gcommon "github.com/hyperledger/fabric/gossip/common"
 	gdisc "github.com/hyperledger/fabric/gossip/discovery"
@@ -25,6 +23,7 @@ import (
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestConfig(t *testing.T) {
@@ -304,11 +303,11 @@ func TestService(t *testing.T) {
 	require.Equal(t, "an error occurred", resp.Results[2].GetError().Content)
 
 	for org, responsePeers := range resp.Results[0].GetMembers().PeersByOrg {
-		err := peers(expectedChannelResponse.PeersByOrg[org].Peers).compare(peers(responsePeers.Peers))
+		err := peers(expectedChannelResponse.PeersByOrg[org].Peers).compare(responsePeers.Peers)
 		require.NoError(t, err)
 	}
 	for org, responsePeers := range resp.Results[1].GetMembers().PeersByOrg {
-		err := peers(expectedLocalResponse.PeersByOrg[org].Peers).compare(peers(responsePeers.Peers))
+		err := peers(expectedLocalResponse.PeersByOrg[org].Peers).compare(responsePeers.Peers)
 		require.NoError(t, err)
 	}
 
@@ -593,7 +592,7 @@ type peers []*discovery.Peer
 func (ps peers) exists(p *discovery.Peer) error {
 	var found bool
 	for _, q := range ps {
-		if reflect.DeepEqual(*p, *q) {
+		if proto.Equal(p, q) {
 			found = true
 			break
 		}

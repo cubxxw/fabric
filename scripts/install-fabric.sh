@@ -6,7 +6,7 @@
 #
 
 # A modified version of the Fabric bootstrap script
-# Use positional arguments to select componenets to install
+# Use positional arguments to select components to install
 #
 # Has exactly the same functional power of bootstrap.sh
 
@@ -21,8 +21,8 @@ _arg_comp=('' )
 
 # if version not passed in, default to latest released version
 # if ca version not passed in, default to latest released version
-_arg_fabric_version="2.4.7"
-_arg_ca_version="1.5.5"
+_arg_fabric_version="2.5.10"
+_arg_ca_version="1.5.13"
 
 REGISTRY=${FABRIC_DOCKER_REGISTRY:-docker.io/hyperledger}
 
@@ -55,8 +55,8 @@ print_help()
 {
 	printf 'Usage: %s [-f|--fabric-version <arg>] [-c|--ca-version <arg>] <comp-1> [<comp-2>] ... [<comp-n>] ...\n' "$0"
 	printf '\t%s\n' "<comp> Component to install, one or more of  docker | binary | samples | podman  First letter of component also accepted; If none specified docker | binary | samples is assumed"
-	printf '\t%s\n' "-f, --fabric-version: FabricVersion (default: '2.4.7')"
-	printf '\t%s\n' "-c, --ca-version: Fabric CA Version (default: '1.5.5')"
+	printf '\t%s\n' "-f, --fabric-version: FabricVersion (default: '2.5.10')"
+	printf '\t%s\n' "-c, --ca-version: Fabric CA Version (default: '1.5.13')"
 }
 
 
@@ -144,7 +144,7 @@ singleImagePull() {
     #three_digit_image_tag is passed in, e.g. "1.4.7"
     three_digit_image_tag=$1
     shift
-    #two_digit_image_tag is derived, e.g. "1.4", especially useful as a local tag for two digit references to most recent baseos, ccenv, javaenv, nodeenv patch releases
+    #two_digit_image_tag is derived, e.g. "1.4", especially useful as a local tag for two digit references
     two_digit_image_tag=$(echo "$three_digit_image_tag" | cut -d'.' -f1,2)
     while [[ $# -gt 0 ]]
     do
@@ -225,9 +225,9 @@ pullImages() {
     command -v  ${CONTAINER_CLI}  >& /dev/null
     NODOCKER=$?
     if [ "${NODOCKER}" == 0 ]; then
-        FABRIC_IMAGES=(peer orderer ccenv tools)
+        FABRIC_IMAGES=(peer orderer ccenv)
         case "$VERSION" in
-        2.*)
+        [2-3].*)
             FABRIC_IMAGES+=(baseos)
             shift
             ;;

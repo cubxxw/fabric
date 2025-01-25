@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"time"
 
-	pcommon "github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric-lib-go/bccsp"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	pcommon "github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/common/channelconfig"
-	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/common/policies"
 	"github.com/hyperledger/fabric/gossip/api"
 	"github.com/hyperledger/fabric/gossip/common"
@@ -150,12 +150,20 @@ func (s *MSPMessageCryptoService) VerifyBlock(chainID common.ChannelID, seqNum u
 		return fmt.Errorf("Block with id [%d] on channel [%s] does not have metadata. Block not valid.", block.Header.Number, chainID)
 	}
 
+	dataHash, err := protoutil.BlockDataHash(block.Data)
+	if err != nil {
+		return err
+	}
 	// - Verify that Header.DataHash is equal to the hash of block.Data
 	// This is to ensure that the header is consistent with the data carried by this block
-	if !bytes.Equal(protoutil.BlockDataHash(block.Data), block.Header.DataHash) {
+	if !bytes.Equal(dataHash, block.Header.DataHash) {
 		return fmt.Errorf("Header.DataHash is different from Hash(block.Data) for block with id [%d] on channel [%s]", block.Header.Number, chainID)
 	}
 
+	return s.verifyHeaderAndMetadata(channelID, block)
+}
+
+func (s *MSPMessageCryptoService) verifyHeaderAndMetadata(channelID string, block *pcommon.Block) error {
 	// Get the policy manager for channelID
 	cpm := s.channelPolicyManagerGetter.Manager(channelID)
 	if cpm == nil {
@@ -182,6 +190,25 @@ func (s *MSPMessageCryptoService) VerifyBlock(chainID common.ChannelID, seqNum u
 
 	verifier := protoutil.BlockSignatureVerifier(bftEnabled, consenters, policy)
 	return verifier(block.Header, block.Metadata)
+}
+
+// VerifyBlockAttestation returns nil when the header matches the metadata signature. It assumed the block.Data is nil
+// and therefore does not verify that Header.DataHash is equal to the hash of block.Data. This is used when the orderer
+// delivers a block with header & metadata only, as an attestation of block existence.
+func (s *MSPMessageCryptoService) VerifyBlockAttestation(chainID string, block *pcommon.Block) error {
+	if block == nil {
+		return fmt.Errorf("Invalid Block on channel [%s]. Block is nil.", chainID)
+	}
+	if block.Header == nil {
+		return fmt.Errorf("Invalid Block on channel [%s]. Header must be different from nil.", chainID)
+	}
+
+	// - Unmarshal medatada
+	if block.Metadata == nil || len(block.Metadata.Metadata) == 0 {
+		return fmt.Errorf("Block with id [%d] on channel [%s] does not have metadata. Block not valid.", block.Header.Number, chainID)
+	}
+
+	return s.verifyHeaderAndMetadata(chainID, block)
 }
 
 // Sign signs msg with this peer's signing key and outputs
@@ -239,7 +266,7 @@ func (s *MSPMessageCryptoService) VerifyByChannel(chainID common.ChannelID, peer
 	return policy.EvaluateSignedData(
 		[]*protoutil.SignedData{{
 			Data:      message,
-			Identity:  []byte(peerIdentity),
+			Identity:  peerIdentity,
 			Signature: signature,
 		}},
 	)
@@ -273,7 +300,7 @@ func (s *MSPMessageCryptoService) getValidatedIdentity(peerIdentity api.PeerIden
 	// the local MSP is required to take the final decision on the validity
 	// of the signature.
 	lDes := s.deserializer.GetLocalDeserializer()
-	identity, err := lDes.DeserializeIdentity([]byte(peerIdentity))
+	identity, err := lDes.DeserializeIdentity(peerIdentity)
 	if err == nil {
 		// No error means that the local MSP successfully deserialized the identity.
 		// We now check additional properties.
@@ -301,7 +328,7 @@ func (s *MSPMessageCryptoService) getValidatedIdentity(peerIdentity api.PeerIden
 	// Check against managers
 	for chainID, mspManager := range s.deserializer.GetChannelDeserializers() {
 		// Deserialize identity
-		identity, err := mspManager.DeserializeIdentity([]byte(peerIdentity))
+		identity, err := mspManager.DeserializeIdentity(peerIdentity)
 		if err != nil {
 			mcsLogger.Debugf("Failed deserialization identity %s on [%s]: [%s]", peerIdentity, chainID, err)
 			continue

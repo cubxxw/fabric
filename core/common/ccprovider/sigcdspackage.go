@@ -17,50 +17,18 @@ limitations under the License.
 package ccprovider
 
 import (
-	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp"
-	"github.com/hyperledger/fabric/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/bccsp"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/core/common/ccpackage"
+	"google.golang.org/protobuf/proto"
 )
 
-//----- SignedCDSData ------
-
-// SignedCDSData is data stored in the LSCC on instantiation of a CC
-// for SignedCDSPackage. This needs to be serialized for ChaincodeData
-// hence the protobuf format
-type SignedCDSData struct {
-	CodeHash      []byte `protobuf:"bytes,1,opt,name=hash"`
-	MetaDataHash  []byte `protobuf:"bytes,2,opt,name=metadatahash"`
-	SignatureHash []byte `protobuf:"bytes,3,opt,name=signaturehash"`
-}
-
-//----implement functions needed from proto.Message for proto's mar/unmarshal functions
-
-// Reset resets
-func (data *SignedCDSData) Reset() { *data = SignedCDSData{} }
-
-// String converts to string
-func (data *SignedCDSData) String() string { return proto.CompactTextString(data) }
-
-// ProtoMessage just exists to make proto happy
-func (*SignedCDSData) ProtoMessage() {}
-
-// Equals data equals other
-func (data *SignedCDSData) Equals(other *SignedCDSData) bool {
-	return other != nil &&
-		bytes.Equal(data.CodeHash, other.CodeHash) &&
-		bytes.Equal(data.MetaDataHash, other.MetaDataHash) &&
-		bytes.Equal(data.SignatureHash, other.SignatureHash)
-}
-
-//-------- SignedCDSPackage ---------
+// -------- SignedCDSPackage ---------
 
 // SignedCDSPackage encapsulates SignedChaincodeDeploymentSpec.
 type SignedCDSPackage struct {
@@ -243,7 +211,7 @@ func (ccpack *SignedCDSPackage) ValidateCC(ccdata *ChaincodeData) error {
 		return err
 	}
 
-	if !ccpack.data.Equals(otherdata) {
+	if !proto.Equal(ccpack.data, otherdata) {
 		return fmt.Errorf("data mismatch")
 	}
 
@@ -342,7 +310,7 @@ func (ccpack *SignedCDSPackage) PutChaincodeToFS() error {
 		return fmt.Errorf("chaincode %s exists", path)
 	}
 
-	if err := ioutil.WriteFile(path, ccpack.buf, 0o644); err != nil {
+	if err := os.WriteFile(path, ccpack.buf, 0o644); err != nil {
 		return err
 	}
 

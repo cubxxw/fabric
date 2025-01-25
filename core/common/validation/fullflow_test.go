@@ -7,15 +7,15 @@ SPDX-License-Identifier: Apache-2.0
 package validation
 
 import (
+	crand "crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"testing"
-	"time"
 
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp/sw"
+	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/msp"
 	mspmgmt "github.com/hyperledger/fabric/msp/mgmt"
 	msptesttools "github.com/hyperledger/fabric/msp/mgmt/testtools"
@@ -206,8 +206,10 @@ func TestTXWithTwoActionsRejected(t *testing.T) {
 }
 
 func corrupt(bytes []byte) {
-	rand.Seed(time.Now().UnixNano())
-	bytes[rand.Intn(len(bytes))]--
+	var seed [32]byte
+	_, _ = crand.Read(seed[:])
+	r := rand.New(rand.NewChaCha8(seed))
+	bytes[r.IntN(len(bytes))]--
 }
 
 func TestBadTx(t *testing.T) {

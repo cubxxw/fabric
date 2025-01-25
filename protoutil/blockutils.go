@@ -10,14 +10,15 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/asn1"
+	"encoding/base64"
 	"fmt"
 	"math/big"
 
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/msp"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 // NewBlock constructs a block with no data and no metadata.
@@ -65,7 +66,14 @@ func BlockHeaderHash(b *cb.BlockHeader) []byte {
 	return sum[:]
 }
 
-func BlockDataHash(b *cb.BlockData) []byte {
+func BlockDataHash(b *cb.BlockData) ([]byte, error) {
+	if err := VerifyTransactionsAreWellFormed(b); err != nil {
+		return nil, err
+	}
+	return ComputeBlockDataHash(b), nil
+}
+
+func ComputeBlockDataHash(b *cb.BlockData) []byte {
 	sum := sha256.Sum256(bytes.Join(b.Data, nil))
 	return sum[:]
 }
@@ -216,11 +224,13 @@ func InitBlockMetadata(block *cb.Block) {
 	if block.Metadata == nil {
 		block.Metadata = &cb.BlockMetadata{Metadata: [][]byte{{}, {}, {}, {}, {}}}
 	} else if len(block.Metadata.Metadata) < int(cb.BlockMetadataIndex_COMMIT_HASH+1) {
-		for i := int(len(block.Metadata.Metadata)); i <= int(cb.BlockMetadataIndex_COMMIT_HASH); i++ {
+		for i := len(block.Metadata.Metadata); i <= int(cb.BlockMetadataIndex_COMMIT_HASH); i++ {
 			block.Metadata.Metadata = append(block.Metadata.Metadata, []byte{})
 		}
 	}
 }
+
+type VerifierBuilder func(block *cb.Block) BlockVerifierFunc
 
 type BlockVerifierFunc func(header *cb.BlockHeader, metadata *cb.BlockMetadata) error
 
@@ -234,7 +244,7 @@ type policy interface { // copied from common.policies to avoid circular import.
 
 func BlockSignatureVerifier(bftEnabled bool, consenters []*cb.Consenter, policy policy) BlockVerifierFunc {
 	return func(header *cb.BlockHeader, metadata *cb.BlockMetadata) error {
-		if len(metadata.Metadata) < int(cb.BlockMetadataIndex_SIGNATURES)+1 {
+		if len(metadata.GetMetadata()) < int(cb.BlockMetadataIndex_SIGNATURES)+1 {
 			return errors.Errorf("no signatures in block metadata")
 		}
 
@@ -251,7 +261,7 @@ func BlockSignatureVerifier(bftEnabled bool, consenters []*cb.Consenter, policy 
 			if bftEnabled && len(metadataSignature.GetSignatureHeader()) == 0 && len(metadataSignature.GetIdentifierHeader()) > 0 {
 				identifierHeader, err := UnmarshalIdentifierHeader(metadataSignature.IdentifierHeader)
 				if err != nil {
-					return fmt.Errorf("failed unmarshalling identifier header for block %d: %v", header.Number, err)
+					return fmt.Errorf("failed unmarshalling identifier header for block %d: %v", header.GetNumber(), err)
 				}
 				identifier := identifierHeader.GetIdentifier()
 				signerIdentity = searchConsenterIdentityByID(consenters, identifier)
@@ -263,7 +273,7 @@ func BlockSignatureVerifier(bftEnabled bool, consenters []*cb.Consenter, policy 
 			} else {
 				signatureHeader, err := UnmarshalSignatureHeader(metadataSignature.GetSignatureHeader())
 				if err != nil {
-					return fmt.Errorf("failed unmarshalling signature header for block %d: %v", header.Number, err)
+					return fmt.Errorf("failed unmarshalling signature header for block %d: %v", header.GetNumber(), err)
 				}
 
 				signedPayload = util.ConcatenateBytes(md.Value, metadataSignature.SignatureHeader, BlockHeaderBytes(header))
@@ -294,5 +304,47 @@ func searchConsenterIdentityByID(consenters []*cb.Consenter, identifier uint32) 
 			})
 		}
 	}
+	return nil
+}
+
+func VerifyTransactionsAreWellFormed(bd *cb.BlockData) error {
+	if bd == nil || bd.Data == nil || len(bd.Data) == 0 {
+		return fmt.Errorf("empty block")
+	}
+
+	// If we have a single transaction, and the block is a config block, then no need to check
+	// well formed-ness, because there cannot be another transaction in the original block.
+	if HasConfigTx(bd) {
+		return nil
+	}
+
+	for i, rawTx := range bd.Data {
+		env := &cb.Envelope{}
+		if err := proto.Unmarshal(rawTx, env); err != nil {
+			return fmt.Errorf("transaction %d is invalid: %v", i, err)
+		}
+
+		if len(env.Payload) == 0 {
+			return fmt.Errorf("transaction %d has no payload", i)
+		}
+
+		if len(env.Signature) == 0 {
+			return fmt.Errorf("transaction %d has no signature", i)
+		}
+
+		expected, err := proto.Marshal(env)
+		if err != nil {
+			return fmt.Errorf("failed re-marshaling envelope: %v", err)
+		}
+
+		if len(expected) < len(rawTx) {
+			return fmt.Errorf("transaction %d has %d trailing bytes", i, len(rawTx)-len(expected))
+		}
+		if !bytes.Equal(expected, rawTx) {
+			return fmt.Errorf("transaction %d (%s) does not match its raw form (%s)", i,
+				base64.StdEncoding.EncodeToString(expected), base64.StdEncoding.EncodeToString(rawTx))
+		}
+	}
+
 	return nil
 }

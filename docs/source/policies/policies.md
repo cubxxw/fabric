@@ -12,8 +12,6 @@ In this topic, we'll cover:
 * [Fabric chaincode lifecycle](#fabric-chaincode-lifecycle)
 * [Overriding policy definitions](#overriding-policy-definitions)
 
-Note: this topic describes a network that does not use a "system channel", a channel that the ordering service is bootstrapped with and the ordering service exclusively controls. Since the release of v2.3, using system channel is now considered the legacy process as compared to the process to [Create a channel](../create_channel/create_channel_participation.html) without a system channel. For a version of this topic that includes information about the system channel, check out [Policies](https://hyperledger-fabric.readthedocs.io/en/release-2.2/policies/policies.html) from the v2.2 documentation.
-
 ## What is a policy
 
 At its most basic level, a policy is a set of rules that define the structure
@@ -192,6 +190,7 @@ channel policies are defined. We can use the `configtx.yaml` file in the Fabric
 test network to see examples of both policy syntax types. We are going to examine
 the `configtx.yaml` file used by the [fabric-samples/test-network](https://github.com/hyperledger/fabric-samples/blob/main/test-network/configtx/configtx.yaml) sample.
 
+### Member Organizations Section
 The first section of the file defines the organizations that will be members of the channel. Inside each
 organization definition are the default policies for that organization, `Readers`, `Writers`,
 `Admins`, and `Endorsement`, although you can name your policies anything you want.
@@ -206,10 +205,10 @@ become the sub-policies that the `ImplicitMeta` policies point to.
 
 <details>
   <summary>
-    **Click here to see an example of an organization defined with signature policies**
+    <strong>Click here to see an example of an organization defined with signature policies</strong>
   </summary>
 
-```
+  ```
 - &Org1
        # DefaultOrg defines the organization which is used in the sampleconfig
        # of the fabric.git development environment
@@ -237,7 +236,11 @@ become the sub-policies that the `ImplicitMeta` policies point to.
                Type: Signature
                Rule: "OR('Org1MSP.peer')"
 ```
+
 </details>
+  
+
+### Application and Roles Section
 
 The next example shows the `ImplicitMeta` policy type used in the `Application`
 section of the `configtx.yaml`. These set of policies lie on the
@@ -254,8 +257,9 @@ create.
 
 <details>
   <summary>
-    **Click here to see an example of ImplicitMeta policies**
+    <strong>Click here to see an example of ImplicitMeta policies</strong>
   </summary>
+
 ```
 ################################################################################
 #
@@ -291,19 +295,12 @@ Application: &ApplicationDefaults
             Type: ImplicitMeta
             Rule: "MAJORITY Endorsement"
 ```
+
 </details>
 
 ## Fabric chaincode lifecycle
 
-In the Fabric 2.0 release, a new chaincode lifecycle process was introduced,
-whereby a more democratic process is used to govern chaincode on the network.
-The new process allows multiple organizations to vote on how a chaincode will
-be operated before it can be used on a channel. This is significant because it is
-the combination of this new lifecycle process and the policies that are
-specified during that process that dictate the security across the network. More details on
-the flow are available in the [Fabric chaincode lifecycle](../chaincode_lifecycle.html)
-concept topic, but for purposes of this topic you should understand how policies are
-used in this flow. The new flow includes two steps where policies are specified:
+The [Fabric chaincode lifecycle](../chaincode_lifecycle.html) utilizes policies
 when chaincode is **approved** by organization members, and when it is **committed**
 to the channel.
 
@@ -361,9 +358,9 @@ endorsement policy can be specified either by reference to an endorsement policy
 defined in the channel configuration or by explicitly specifying a Signature policy.
 
 If an endorsement policy is not explicitly specified during the approval step,
-the default `Endorsement` policy `"MAJORITY Endorsement"` is used which means
-that a majority of the peers belonging to the different channel members
-(organizations) need to execute and validate a transaction against the chaincode
+the channel `Endorsement` policy is used which by default is `"MAJORITY Endorsement"`,
+meaning that a peer from a majority of the organizations belonging to a channel
+need to execute a transaction against the chaincode
 in order for the transaction to be considered valid. This default policy allows
 organizations that join the channel to become automatically added to the chaincode
 endorsement policy. If you don't want to use the default endorsement
@@ -399,20 +396,6 @@ keys.
 For a deeper dive on how to write an endorsement policy refer to the topic on
 [Endorsement policies](../endorsement-policies.html) in the Operations Guide.
 
-**Note:**  Policies work differently depending on which version of Fabric you are
-  using:
-- In Fabric releases prior to 2.0, chaincode endorsement policies can be
-  updated during chaincode instantiation or by using the chaincode lifecycle
-  commands. If not specified at instantiation time, the endorsement policy
-  defaults to “any member of the organizations in the channel”. For example,
-  a channel with “Org1” and “Org2” would have a default endorsement policy of
-  “OR(‘Org1.member’, ‘Org2.member’)”.
-- Starting with Fabric 2.0, Fabric introduced a new chaincode
-  lifecycle process that allows multiple organizations to agree on how a
-  chaincode will be operated before it can be used on a channel.  The new process
-  requires that organizations agree to the parameters that define a chaincode,
-  such as name, version, and the chaincode endorsement policy.
-
 ## Overriding policy definitions
 
 Hyperledger Fabric includes default policies which are useful for getting started,
@@ -422,7 +405,7 @@ in the `configtx.yaml` file. Channel configuration policies can be extended
 with arbitrary verbs, beyond the default `Readers, Writers, Admins` in
 `configtx.yaml`.
 
-For more information on overriding policy definitions when creating a channel, check out [Channel policies](../create_channel/channel_policies.html) and [Creating a channel without a system channel](../create_channel/create_channel_participation.html).
+For more information on overriding policy definitions when creating a channel, check out [Channel policies](../create_channel/channel_policies.html) and [Creating a channel](../create_channel/create_channel_participation.html).
 
 For information about how to update a channel, check out [Updating a channel configuration](../config_update.html#updating-a-channel-configuration) for more information.
 

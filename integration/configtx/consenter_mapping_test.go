@@ -7,24 +7,23 @@ SPDX-License-Identifier: Apache-2.0
 package configtx
 
 import (
-	"io/ioutil"
 	"os"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/integration/nwo"
 	"github.com/hyperledger/fabric/protoutil"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"google.golang.org/protobuf/proto"
 )
 
 var _ = Describe("ConfigTx ConsenterMapping", func() {
 	It("generates an application channel genesis block and checks it contains the ConsenterMapping", func() {
-		testDir, err := ioutil.TempDir("", "configtx")
+		testDir, err := os.MkdirTemp("", "configtx")
 		Expect(err).NotTo(HaveOccurred())
 		defer os.RemoveAll(testDir)
 
-		network := nwo.New(nwo.MultiNodeBFTNoSysChan(), testDir, nil, StartPort(), components)
+		network := nwo.New(nwo.MultiNodeBFT(), testDir, nil, StartPort(), components)
 
 		// Generate config
 		network.GenerateConfigTree()

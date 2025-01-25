@@ -10,29 +10,28 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	pcommon "github.com/hyperledger/fabric-protos-go/common"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp"
-	"github.com/hyperledger/fabric/bccsp/factory"
+	"github.com/go-viper/mapstructure/v2"
+	"github.com/hyperledger/fabric-lib-go/bccsp"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	pcommon "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/channelconfig"
-	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/core/config"
 	"github.com/hyperledger/fabric/core/scc/cscc"
 	"github.com/hyperledger/fabric/internal/pkg/comm"
 	"github.com/hyperledger/fabric/msp"
 	mspmgmt "github.com/hyperledger/fabric/msp/mgmt"
 	"github.com/hyperledger/fabric/protoutil"
-	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 // UndefinedParamValue defines what undefined parameters in the command line will initialise to
@@ -281,7 +280,27 @@ func GetOrdererEndpointOfChain(chainID string, signer Signer, endorserClient pb.
 		return nil, errors.WithMessage(err, "error loading channel config")
 	}
 
-	return bundle.ChannelConfig().OrdererAddresses(), nil
+	ordererConfig, ok := bundle.OrdererConfig()
+	if !ok {
+		return nil, errors.New("missing OrdererConfig in channel config")
+	}
+
+	var orgAddresses []string
+	for orgName, org := range ordererConfig.Organizations() {
+		logger.Debugf("Adding endpoints of org `%s`: %v", orgName, org.Endpoints())
+		orgAddresses = append(orgAddresses, org.Endpoints()...)
+	}
+
+	ordererAddresses := bundle.ChannelConfig().OrdererAddresses()
+	if len(orgAddresses) > 0 {
+		if len(ordererAddresses) > 0 {
+			logger.Warningf("Deprecated global OrdererAddresses exist: %s; ignoring them", ordererAddresses)
+		}
+		return orgAddresses, nil
+	}
+
+	logger.Warningf("Org specific endpoints are missing, returning (deprecated) global OrdererAddresses: %s; ", ordererAddresses)
+	return ordererAddresses, nil
 }
 
 // CheckLogLevel checks that a given log level string is valid
@@ -307,7 +326,7 @@ func configFromEnv(prefix string) (address string, clientConfig comm.ClientConfi
 		ServerNameOverride: viper.GetString(prefix + ".tls.serverhostoverride"),
 	}
 	if secOpts.UseTLS {
-		caPEM, res := ioutil.ReadFile(config.GetPath(prefix + ".tls.rootcert.file"))
+		caPEM, res := os.ReadFile(config.GetPath(prefix + ".tls.rootcert.file"))
 		if res != nil {
 			err = errors.WithMessagef(res, "unable to load %s.tls.rootcert.file", prefix)
 			return
@@ -334,11 +353,11 @@ func configFromEnv(prefix string) (address string, clientConfig comm.ClientConfi
 
 // getClientAuthInfoFromEnv reads client tls key file and cert file and returns the bytes for the files
 func getClientAuthInfoFromEnv(prefix string) ([]byte, []byte, error) {
-	keyPEM, err := ioutil.ReadFile(config.GetPath(prefix + ".tls.clientKey.file"))
+	keyPEM, err := os.ReadFile(config.GetPath(prefix + ".tls.clientKey.file"))
 	if err != nil {
 		return nil, nil, errors.WithMessagef(err, "unable to load %s.tls.clientKey.file", prefix)
 	}
-	certPEM, err := ioutil.ReadFile(config.GetPath(prefix + ".tls.clientCert.file"))
+	certPEM, err := os.ReadFile(config.GetPath(prefix + ".tls.clientCert.file"))
 	if err != nil {
 		return nil, nil, errors.WithMessagef(err, "unable to load %s.tls.clientCert.file", prefix)
 	}

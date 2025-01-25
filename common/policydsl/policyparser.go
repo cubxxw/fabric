@@ -14,9 +14,9 @@ import (
 	"strings"
 
 	"github.com/Knetic/govaluate"
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	mb "github.com/hyperledger/fabric-protos-go/msp"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	mb "github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	"google.golang.org/protobuf/proto"
 )
 
 // Gate values
@@ -92,6 +92,8 @@ func or(args ...interface{}) (interface{}, error) {
 	return outof(args...)
 }
 
+// firstPass processes a variadic list of arguments and returns a formatted string.
+// The function expects arguments to be of either string, float32, or float64 types.
 func firstPass(args ...interface{}) (interface{}, error) {
 	toret := "outof(ID"
 	for _, arg := range args {
@@ -115,6 +117,9 @@ func firstPass(args ...interface{}) (interface{}, error) {
 	return toret + ")", nil
 }
 
+// secondPass processes a list of arguments to build a "t-out-of-n" policy.
+// It expects the first argument to be a context, the second an integer (threshold t),
+// and the rest as either principals (strings) or pre-existing policies.
 func secondPass(args ...interface{}) (interface{}, error) {
 	/* general sanity check, we expect at least 3 args */
 	if len(args) < 3 {

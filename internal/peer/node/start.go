@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -21,24 +20,23 @@ import (
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	discprotos "github.com/hyperledger/fabric-protos-go/discovery"
-	gatewayprotos "github.com/hyperledger/fabric-protos-go/gateway"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	floggingmetrics "github.com/hyperledger/fabric-lib-go/common/flogging/metrics"
+	"github.com/hyperledger/fabric-lib-go/common/metrics"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	discprotos "github.com/hyperledger/fabric-protos-go-apiv2/discovery"
+	gatewayprotos "github.com/hyperledger/fabric-protos-go-apiv2/gateway"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/cauthdsl"
 	ccdef "github.com/hyperledger/fabric/common/chaincode"
 	"github.com/hyperledger/fabric/common/crypto"
 	"github.com/hyperledger/fabric/common/crypto/tlsgen"
 	"github.com/hyperledger/fabric/common/deliver"
 	"github.com/hyperledger/fabric/common/fabhttp"
-	"github.com/hyperledger/fabric/common/flogging"
-	floggingmetrics "github.com/hyperledger/fabric/common/flogging/metrics"
 	"github.com/hyperledger/fabric/common/grpclogging"
 	"github.com/hyperledger/fabric/common/grpcmetrics"
 	"github.com/hyperledger/fabric/common/metadata"
-	"github.com/hyperledger/fabric/common/metrics"
 	"github.com/hyperledger/fabric/common/policies"
 	"github.com/hyperledger/fabric/common/policydsl"
 	"github.com/hyperledger/fabric/core/aclmgmt"
@@ -100,6 +98,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -187,6 +188,23 @@ func (c custodianLauncherAdapter) Stop(ccid string) error {
 }
 
 func serve(args []string) error {
+	logger.Infof("Starting %s", version.GetInfo())
+
+	// Info logging for peer config, includes core.yaml settings and environment variable overrides
+	allSettings := viper.AllSettings()
+	settingsYaml, err := yaml.Marshal(allSettings)
+	if err != nil {
+		return err
+	}
+	logger.Infof("Peer config with combined core.yaml settings and environment variable overrides:\n%s", settingsYaml)
+
+	// Debug logging for peer environment variables
+	logger.Debugf("Environment variables:")
+	envVars := os.Environ()
+	for _, envVar := range envVars {
+		logger.Debug(envVar)
+	}
+
 	// currently the peer only works with the standard MSP
 	// because in certain scenarios the MSP has to make sure
 	// that from a single credential you only have a single 'identity'.
@@ -202,8 +220,6 @@ func serve(args []string) error {
 	// the deliver service connection factory as it has process wide implications
 	// and was racy with respect to initialization of gRPC clients and servers.
 	grpc.EnableTracing = true
-
-	logger.Infof("Starting %s", version.GetInfo())
 
 	// obtain coreConfiguration
 	coreConfig, err := peer.GlobalConfig()
@@ -337,7 +353,7 @@ func serve(args []string) error {
 	// startup aclmgmt with default ACL providers (resource based and default 1.0 policies based).
 	// Users can pass in their own ACLProvider to RegisterACLProvider (currently unit tests do this)
 	aclProvider := aclmgmt.NewACLProvider(
-		aclmgmt.ResourceGetter(peerInstance.GetStableChannelConfig),
+		peerInstance.GetStableChannelConfig,
 		policyChecker,
 	)
 
@@ -375,7 +391,7 @@ func serve(args []string) error {
 	legacyMetadataManager, err := cclifecycle.NewMetadataManager(
 		cclifecycle.EnumerateFunc(
 			func() ([]ccdef.InstalledChaincode, error) {
-				return ccInfoFSImpl.ListInstalledChaincodes(ccInfoFSImpl.GetChaincodeInstallPath(), ioutil.ReadDir, ccprovider.LoadPackage)
+				return ccInfoFSImpl.ListInstalledChaincodes(ccInfoFSImpl.GetChaincodeInstallPath(), os.ReadDir, ccprovider.LoadPackage)
 			},
 		),
 	)
@@ -746,7 +762,7 @@ func serve(args []string) error {
 	}
 
 	// deploy system chaincodes
-	for _, cc := range []scc.SelfDescribingSysCC{lsccInst, csccInst, qsccInst, lifecycleSCC} {
+	for _, cc := range []scc.SelfDescribingSysCC{csccInst, qsccInst, lifecycleSCC} {
 		if enabled, ok := chaincodeConfig.SCCAllowlist[cc.Name()]; !ok || !enabled {
 			logger.Infof("not deploying chaincode %s as it is not enabled", cc.Name())
 			continue
@@ -818,26 +834,6 @@ func serve(args []string) error {
 		discprotos.RegisterDiscoveryServer(peerServer.Server(), discoveryService)
 	}
 
-	if coreConfig.GatewayOptions.Enabled {
-		if coreConfig.DiscoveryEnabled {
-			logger.Info("Starting peer with Gateway enabled")
-
-			gatewayServer := gateway.CreateServer(
-				serverEndorser,
-				discoveryService,
-				peerInstance,
-				&serverConfig.SecOpts,
-				aclProvider,
-				coreConfig.LocalMSPID,
-				coreConfig.GatewayOptions,
-				builtinSCCs,
-			)
-			gatewayprotos.RegisterGatewayServer(peerServer.Server(), gatewayServer)
-		} else {
-			logger.Warning("Discovery service must be enabled for embedded gateway")
-		}
-	}
-
 	logger.Infof("Starting peer with ID=[%s], network ID=[%s], address=[%s]", coreConfig.PeerID, coreConfig.NetworkID, coreConfig.PeerAddress)
 
 	// Get configuration before starting go routines to avoid
@@ -896,6 +892,26 @@ func serve(args []string) error {
 	auth := authHandler.ChainFilters(serverEndorser, authFilters...)
 	// Register the Endorser server
 	pb.RegisterEndorserServer(peerServer.Server(), auth)
+
+	if coreConfig.GatewayOptions.Enabled {
+		if coreConfig.DiscoveryEnabled {
+			logger.Info("Starting peer with Gateway enabled")
+
+			gatewayServer := gateway.CreateServer(
+				auth,
+				discoveryService,
+				peerInstance,
+				&serverConfig.SecOpts,
+				aclProvider,
+				coreConfig.LocalMSPID,
+				coreConfig.GatewayOptions,
+				builtinSCCs,
+			)
+			gatewayprotos.RegisterGatewayServer(peerServer.Server(), gatewayServer)
+		} else {
+			logger.Warning("Discovery service must be enabled for embedded gateway")
+		}
+	}
 
 	// register the snapshot server
 	snapshotSvc := &snapshotgrpc.SnapshotService{LedgerGetter: peerInstance, ACLProvider: aclProvider}
@@ -1176,7 +1192,7 @@ func secureDialOpts(credSupport *comm.CredentialSupport) func() []grpc.DialOptio
 		if viper.GetBool("peer.tls.enabled") {
 			dialOpts = append(dialOpts, grpc.WithTransportCredentials(credSupport.GetPeerCredentials()))
 		} else {
-			dialOpts = append(dialOpts, grpc.WithInsecure())
+			dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
 		return dialOpts
 	}

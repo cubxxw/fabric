@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -19,9 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/orderer"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/hyperledger/fabric/core/config/configtest"
 	"github.com/hyperledger/fabric/internal/peer/common"
 	"github.com/hyperledger/fabric/internal/peer/common/mock"
@@ -31,6 +29,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 //go:generate counterfeiter -o mock/signer_serializer.go --fake-name SignerSerializer . signerSerializer
@@ -60,7 +59,7 @@ func newOrderer(port int, t *testing.T) *timeoutOrderer {
 		t:                t,
 		nextExpectedSeek: uint64(1),
 		blockChannel:     make(chan uint64, 1),
-		counter:          int(1),
+		counter:          1,
 	}
 	orderer.RegisterAtomicBroadcastServer(srv, o)
 	go srv.Serve(lsnr)
@@ -153,8 +152,7 @@ func TestCreateChain(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 
@@ -194,8 +192,7 @@ func TestCreateChainWithOutputBlock(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 
@@ -231,8 +228,7 @@ func TestCreateChainWithDefaultAnchorPeers(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 
@@ -264,8 +260,7 @@ func TestCreateChainWithWaitSuccess(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 
@@ -298,8 +293,7 @@ func TestCreateChainWithTimeoutErr(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 
@@ -345,8 +339,7 @@ func TestCreateChainBCFail(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 
@@ -385,8 +378,7 @@ func TestCreateChainDeliverFail(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchain := "mockchain"
 
@@ -439,7 +431,7 @@ func createTxFile(filename string, typ cb.HeaderType, channelID string) (*cb.Env
 		return nil, err
 	}
 
-	if err = ioutil.WriteFile(filename, data, 0o644); err != nil {
+	if err = os.WriteFile(filename, data, 0o644); err != nil {
 		return nil, err
 	}
 
@@ -449,8 +441,7 @@ func createTxFile(filename string, typ cb.HeaderType, channelID string) (*cb.Env
 func TestCreateChainFromTx(t *testing.T) {
 	defer resetFlags()
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchannel := "mockchannel"
 	dir := t.TempDir()
@@ -507,8 +498,7 @@ func TestCreateChainInvalidTx(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchannel := "mockchannel"
 
@@ -578,8 +568,7 @@ func TestCreateChainNilCF(t *testing.T) {
 	defer resetFlags()
 
 	InitMSP()
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	mockchannel := "mockchannel"
 	dir := t.TempDir()

@@ -16,10 +16,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/internal/osnadmin"
 	"github.com/hyperledger/fabric/protoutil"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -54,7 +54,7 @@ func executeForArgs(args []string) (output string, exit int, err error) {
 	list := channel.Command("list", "List channel information for an Ordering Service Node (OSN). If the channelID flag is set, more detailed information will be provided for that channel.")
 	listChannelID := list.Flag("channelID", "Channel ID").Short('c').String()
 
-	remove := channel.Command("remove", "Remove an Ordering Service Node (OSN) from a channel.")
+	remove := channel.Command("remove", "Remove a channel from an Ordering Service Node (OSN).")
 	removeChannelID := remove.Flag("channelID", "Channel ID").Short('c').Required().String()
 
 	command, err := app.Parse(args)

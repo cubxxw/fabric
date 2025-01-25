@@ -8,22 +8,24 @@ package gateway
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/golang/protobuf/proto"
-	dp "github.com/hyperledger/fabric-protos-go/discovery"
-	"github.com/hyperledger/fabric-protos-go/gossip"
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	dp "github.com/hyperledger/fabric-protos-go-apiv2/discovery"
+	"github.com/hyperledger/fabric-protos-go-apiv2/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/channelconfig"
-	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/core/scc"
 	gossipapi "github.com/hyperledger/fabric/gossip/api"
 	gossipcommon "github.com/hyperledger/fabric/gossip/common"
 	gossipdiscovery "github.com/hyperledger/fabric/gossip/discovery"
+	"github.com/hyperledger/fabric/internal/pkg/gateway/ledger"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 type Discovery interface {
@@ -44,6 +46,7 @@ type registry struct {
 	configLock         sync.RWMutex
 	channelOrderers    sync.Map // channel (string) -> orderer addresses (endpointConfig)
 	systemChaincodes   scc.BuiltinSCCs
+	localProvider      ledger.Provider
 }
 
 type endorserState struct {
@@ -56,7 +59,8 @@ type endorserState struct {
 func (reg *registry) endorsementPlan(channel string, interest *peer.ChaincodeInterest, preferredEndorser *endorser) (*plan, error) {
 	descriptor, err := reg.discovery.PeersForEndorsement(gossipcommon.ChannelID(channel), interest)
 	if err != nil {
-		logger.Errorw("PeersForEndorsement failed.", "error", err, "channel", channel, "ChaincodeInterest", proto.MarshalTextString(interest))
+		b, _ := prototext.Marshal(interest)
+		logger.Errorw("PeersForEndorsement failed.", "error", err, "channel", channel, "ChaincodeInterest", b)
 		return nil, errors.Wrap(err, "no combination of peers can be derived which satisfy the endorsement policy")
 	}
 
@@ -200,11 +204,40 @@ func (reg *registry) endorsersByOrg(channel string, chaincode string) map[string
 }
 
 func (reg *registry) channelMembers(channel string) gossipdiscovery.Members {
-	return reg.discovery.PeersOfChannel(gossipcommon.ChannelID(channel))
+	members := reg.discovery.PeersOfChannel(gossipcommon.ChannelID(channel))
+
+	// Ensure local endorser ledger height is up-to-date
+	for _, member := range members {
+		if reg.isLocalEndorserID(member.PKIid) {
+			if ledgerHeight, ok := reg.localLedgerHeight(channel); ok {
+				member.Properties.LedgerHeight = ledgerHeight
+			}
+
+			break
+		}
+	}
+
+	return members
 }
 
 func (reg *registry) isLocalEndorserID(pkiID gossipcommon.PKIidType) bool {
 	return !pkiID.IsNotSameFilter(reg.localEndorser.pkiid)
+}
+
+func (reg *registry) localLedgerHeight(channel string) (height uint64, ok bool) {
+	ledger, err := reg.localProvider.Ledger(channel)
+	if err != nil {
+		reg.logger.Warnw("local endorser is not a member of channel", "channel", channel, "err", err)
+		return 0, false
+	}
+
+	info, err := ledger.GetBlockchainInfo()
+	if err != nil {
+		logger.Errorw("failed to get local ledger info", "err", err)
+		return 0, false
+	}
+
+	return info.GetHeight(), true
 }
 
 // evaluator returns a plan representing a single endorsement, preferably from local org, if available

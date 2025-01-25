@@ -11,14 +11,13 @@ import (
 	"crypto/sha256"
 	"errors"
 	"hash"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var testNewHashFunc = func() (hash.Hash, error) {
@@ -166,7 +165,7 @@ func TestFileCreatorErrorPropagation(t *testing.T) {
 func TestFileReaderErrorPropagation(t *testing.T) {
 	testPath := t.TempDir()
 
-	// non-existent-file cuases an error
+	// non-existent-file causes an error
 	nonExistentFile := path.Join(testPath, "non-existent-file")
 	_, err := OpenFile(nonExistentFile, byte(1))
 	require.Contains(t, err.Error(), "error while opening the snapshot file: "+nonExistentFile)
@@ -214,7 +213,7 @@ func TestFileReaderErrorPropagation(t *testing.T) {
 }
 
 func computeSha256(t *testing.T, file string) []byte {
-	data, err := ioutil.ReadFile(file)
+	data, err := os.ReadFile(file)
 	require.NoError(t, err)
 	sha := sha256.Sum256(data)
 	return sha[:]

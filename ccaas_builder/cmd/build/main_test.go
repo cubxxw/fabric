@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -19,7 +18,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-func TestArguements(t *testing.T) {
+func TestArguments(t *testing.T) {
 
 	testCases := map[string]struct {
 		exitCode int
@@ -168,8 +167,8 @@ func TestTemplating(t *testing.T) {
 	_, err = os.Stat(chkfile)
 	gt.Expect(err).NotTo(HaveOccurred())
 
-	// check that the file has the exepected contents
-	connectionFileContents, err := ioutil.ReadFile(chkfile)
+	// check that the file has the expected contents
+	connectionFileContents, err := os.ReadFile(chkfile)
 	gt.Expect(err).NotTo(HaveOccurred())
 
 	expectedJson := `{

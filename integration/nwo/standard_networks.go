@@ -32,20 +32,7 @@ func BasicConfig() *Config {
 			Users:         2,
 			CA:            &CA{Hostname: "ca"},
 		}},
-		Consortiums: []*Consortium{{
-			Name: "SampleConsortium",
-			Organizations: []string{
-				"Org1",
-				"Org2",
-			},
-		}},
-		Consensus: &Consensus{
-			BootstrapMethod: "file",
-		},
-		SystemChannel: &SystemChannel{
-			Name:    "systemchannel",
-			Profile: "TwoOrgsOrdererGenesis",
-		},
+		Consensus: &Consensus{},
 		Orderers: []*Orderer{
 			{Name: "orderer", Organization: "OrdererOrg"},
 		},
@@ -82,8 +69,7 @@ func BasicConfig() *Config {
 // Utility methods for tests without the system channel.
 // These methods start from BasicConfig() and only use each other progressively.
 
-func BasicEtcdRaftNoSysChan() *Config {
-	// TODO after we finish converting all tests to not use the system channel, rename it
+func BasicEtcdRaft() *Config {
 	config := BasicConfig()
 
 	config.Consensus.Type = "etcdraft"
@@ -95,17 +81,12 @@ func BasicEtcdRaftNoSysChan() *Config {
 			Organizations: []string{"Org1", "Org2"},
 		},
 	}
-	config.SystemChannel = nil
-	config.Consensus.ChannelParticipationEnabled = true
-	config.Consensus.BootstrapMethod = "none"
-	config.Consortiums = nil
 	config.Channels = []*Channel{{Name: "testchannel", Profile: "TwoOrgsAppChannelEtcdRaft"}}
 
 	return config
 }
 
-func MultiChannelEtcdRaftNoSysChan() *Config {
-	// TODO after we finish converting all tests to not use the system channel, rename it
+func MultiChannelEtcdRaft() *Config {
 	config := BasicConfig()
 
 	config.Consensus.Type = "etcdraft"
@@ -129,16 +110,11 @@ func MultiChannelEtcdRaftNoSysChan() *Config {
 		}
 	}
 
-	config.SystemChannel = nil
-	config.Consensus.ChannelParticipationEnabled = true
-	config.Consensus.BootstrapMethod = "none"
-
 	return config
 }
 
-func MinimalRaftNoSysChan() *Config {
-	// TODO after we finish converting all tests to not use the system channel, rename it
-	config := BasicEtcdRaftNoSysChan()
+func MinimalRaft() *Config {
+	config := BasicEtcdRaft()
 
 	config.Peers[1].Channels = nil
 	config.Channels = []*Channel{
@@ -154,10 +130,9 @@ func MinimalRaftNoSysChan() *Config {
 	return config
 }
 
-// FullEtcdRaftNoSysChan is a configuration with two organizations and two peers per org.
-func FullEtcdRaftNoSysChan() *Config {
-	// TODO after we finish converting all tests to not use the system channel, rename it
-	config := BasicEtcdRaftNoSysChan()
+// FullEtcdRaft is a configuration with two organizations and two peers per org.
+func FullEtcdRaft() *Config {
+	config := BasicEtcdRaft()
 
 	config.Peers = append(
 		config.Peers,
@@ -180,7 +155,7 @@ func FullEtcdRaftNoSysChan() *Config {
 	return config
 }
 
-func MultiNodeBFTNoSysChan() *Config {
+func MultiNodeBFT() *Config {
 	config := BasicConfig()
 
 	config.Consensus.Type = "BFT"
@@ -191,23 +166,21 @@ func MultiNodeBFTNoSysChan() *Config {
 	}
 	config.Profiles = []*Profile{
 		{
-			Name:          "TwoOrgsAppChannelBFT",
-			Consortium:    "SampleConsortium",
-			Organizations: []string{"Org1", "Org2"},
-			Orderers:      []string{"orderer1", "orderer2", "orderer3"},
+			Name:                "TwoOrgsAppChannelBFT",
+			Consortium:          "SampleConsortium",
+			Organizations:       []string{"Org1", "Org2"},
+			Orderers:            []string{"orderer1", "orderer2", "orderer3"},
+			ChannelCapabilities: []string{"V3_0"},
 		},
 	}
-	config.SystemChannel = nil
-	config.Consensus.ChannelParticipationEnabled = true
-	config.Consensus.BootstrapMethod = "none"
 	config.Channels = []*Channel{{Name: "testchannel", Profile: "TwoOrgsAppChannelBFT"}}
 
 	return config
 }
 
-// ThreeOrgEtcdRaftNoSysChan returns a simple configuration with three organizations instead of two.
-func ThreeOrgEtcdRaftNoSysChan() *Config {
-	config := BasicEtcdRaftNoSysChan()
+// ThreeOrgEtcdRaft returns a simple configuration with three organizations instead of two.
+func ThreeOrgEtcdRaft() *Config {
+	config := BasicEtcdRaft()
 	config.Organizations = append(
 		config.Organizations,
 		&Organization{
@@ -232,7 +205,6 @@ func ThreeOrgEtcdRaftNoSysChan() *Config {
 	)
 	config.Profiles = []*Profile{{
 		Name:          "ThreeOrgsAppChannel",
-		Consortium:    "SampleConsortium",
 		Orderers:      []string{"orderer"},
 		Organizations: []string{"Org1", "Org2", "Org3"},
 	}}
@@ -240,8 +212,8 @@ func ThreeOrgEtcdRaftNoSysChan() *Config {
 	return config
 }
 
-func BasicEtcdRaftWithIdemixNoSysChan() *Config {
-	config := BasicEtcdRaftNoSysChan()
+func BasicEtcdRaftWithIdemix() *Config {
+	config := BasicEtcdRaft()
 
 	// Add idemix organization
 	config.Organizations = append(config.Organizations, &Organization{
@@ -253,14 +225,14 @@ func BasicEtcdRaftWithIdemixNoSysChan() *Config {
 		Users:         0,
 		CA:            &CA{Hostname: "ca"},
 	})
-	// Add idemix organization to consortium
+	// Add idemix organization
 	config.Profiles[0].Organizations = append(config.Profiles[0].Organizations, "Org3")
 
 	return config
 }
 
-func MultiNodeEtcdRaftNoSysChan() *Config {
-	config := BasicEtcdRaftNoSysChan()
+func MultiNodeEtcdRaft() *Config {
+	config := BasicEtcdRaft()
 	config.Orderers = []*Orderer{
 		{Name: "orderer1", Organization: "OrdererOrg"},
 		{Name: "orderer2", Organization: "OrdererOrg"},
@@ -268,5 +240,49 @@ func MultiNodeEtcdRaftNoSysChan() *Config {
 	}
 	config.Profiles[0].Orderers = []string{"orderer1", "orderer2", "orderer3"}
 
+	return config
+}
+
+func BasicSmartBFT() *Config {
+	config := BasicConfig()
+	config.Consensus.Type = "BFT"
+	config.Profiles = []*Profile{{
+		Name:     "SampleDevModeSmartBFT",
+		Orderers: []string{"orderer"},
+	}, {
+		Name:          "TwoOrgsChannel",
+		Consortium:    "SampleConsortium",
+		Organizations: []string{"Org1", "Org2"},
+	}}
+	return config
+}
+
+func MultiNodeSmartBFT() *Config {
+	config := BasicSmartBFT()
+	config.Orderers = []*Orderer{
+		{Name: "orderer1", Organization: "OrdererOrg", Id: 1},
+		{Name: "orderer2", Organization: "OrdererOrg", Id: 2},
+		{Name: "orderer3", Organization: "OrdererOrg", Id: 3},
+		{Name: "orderer4", Organization: "OrdererOrg", Id: 4},
+	}
+	config.Profiles = []*Profile{{
+		ChannelCapabilities: []string{"V3_0"},
+		Name:                "SampleDevModeSmartBFT",
+		Orderers:            []string{"orderer1", "orderer2", "orderer3", "orderer4"},
+		Organizations:       []string{"Org1", "Org2"},
+		AppCapabilities:     []string{"V2_0"},
+	}}
+
+	config.Channels = []*Channel{
+		{Name: "testchannel1", Profile: "SampleDevModeSmartBFT"},
+		{Name: "testchannel2", Profile: "SampleDevModeSmartBFT"},
+	}
+
+	for _, peer := range config.Peers {
+		peer.Channels = []*PeerChannel{
+			{Name: "testchannel1", Anchor: true},
+			{Name: "testchannel2", Anchor: true},
+		}
+	}
 	return config
 }

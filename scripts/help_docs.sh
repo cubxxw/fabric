@@ -54,7 +54,7 @@ checkHelpTextCurrent() {
 
   generateHelpText "$tempfile" "$@"
   if ! diff -u "$doc" "$tempfile"; then
-    echo "The command line help docs are out of date and need to be regenerated"
+    echo "The command line help docs are out of date and need to be regenerated, see docs/source/docs_guide.md for more details."
     exit 2
   fi
 
@@ -78,7 +78,7 @@ generateOrCheck \
         docs/wrappers/license_postscript.md \
         "${commands[@]}"
 
-commands=("peer chaincode install" "peer chaincode instantiate" "peer chaincode invoke" "peer chaincode list" "peer chaincode package" "peer chaincode query" "peer chaincode signpackage" "peer chaincode upgrade")
+commands=("peer chaincode invoke" "peer chaincode query")
 generateOrCheck \
         docs/source/commands/peerchaincode.md \
         docs/wrappers/peer_chaincode_preamble.md \
@@ -141,7 +141,7 @@ generateOrCheck \
         docs/wrappers/osnadmin_channel_postscript.md \
         "${commands[@]}"
 
-commands=("ledgerutil compare" "ledgerutil identifytxs")
+commands=("ledgerutil compare" "ledgerutil identifytxs" "ledgerutil verify")
 generateOrCheck \
         docs/source/commands/ledgerutil.md \
         docs/wrappers/ledgerutil_preamble.md \

@@ -9,8 +9,8 @@ package statebased
 import (
 	"sync"
 
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	validation "github.com/hyperledger/fabric/core/handlers/validation/api/state"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
 	"github.com/pkg/errors"
@@ -350,7 +350,7 @@ func (m *KeyLevelValidationParameterManagerImpl) GetValidationParameterForKey(cc
 	return policy, nil
 }
 
-// SetTxValidationCode implements the method of the same name of
+// SetTxValidationResult implements the method of the same name of
 // the KeyLevelValidationParameterManager interface. Note that
 // this function receives a namespace argument so that it records
 // the validation result for this transaction and for this chaincode.

@@ -10,18 +10,17 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
-	"io/ioutil"
 	"os"
 	"syscall"
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-config/configtx"
-	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/integration/channelparticipation"
 	"github.com/hyperledger/fabric/integration/nwo"
 	"github.com/hyperledger/fabric/integration/ordererclient"
+	. "github.com/hyperledger/fabric/internal/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
@@ -39,13 +38,13 @@ var _ = Describe("ConfigTx", func() {
 
 	BeforeEach(func() {
 		var err error
-		testDir, err = ioutil.TempDir("", "configtx")
+		testDir, err = os.MkdirTemp("", "configtx")
 		Expect(err).NotTo(HaveOccurred())
 
 		client, err = docker.NewClientFromEnv()
 		Expect(err).NotTo(HaveOccurred())
 
-		config := nwo.BasicEtcdRaftNoSysChan()
+		config := nwo.BasicEtcdRaft()
 		// disable all anchor peers
 		for _, p := range config.Peers {
 			for _, pc := range p.Channels {
@@ -133,7 +132,7 @@ var _ = Describe("ConfigTx", func() {
 
 		By("ensuring the active channel config matches the submitted config")
 		updatedChannelConfig := nwo.GetConfig(network, org2peer0, orderer, "testchannel")
-		Expect(proto.Equal(c.UpdatedConfig(), updatedChannelConfig)).To(BeTrue())
+		Expect(c.UpdatedConfig()).To(ProtoEqual(updatedChannelConfig))
 
 		By("checking the current application capabilities")
 		c = configtx.New(updatedChannelConfig)
@@ -191,7 +190,7 @@ var _ = Describe("ConfigTx", func() {
 
 		By("ensuring the active channel config matches the submitted config")
 		updatedChannelConfig = nwo.GetConfig(network, org2peer0, orderer, "testchannel")
-		Expect(proto.Equal(c.UpdatedConfig(), updatedChannelConfig)).To(BeTrue())
+		Expect(c.UpdatedConfig()).To(ProtoEqual(updatedChannelConfig))
 
 		By("adding the anchor peer for each org")
 		for _, peer := range testPeers {
@@ -236,14 +235,14 @@ var _ = Describe("ConfigTx", func() {
 
 			By("ensuring the active channel config matches the submitted config")
 			updatedChannelConfig = nwo.GetConfig(network, peer, orderer, "testchannel")
-			Expect(proto.Equal(c.UpdatedConfig(), updatedChannelConfig)).To(BeTrue())
+			Expect(c.UpdatedConfig()).To(ProtoEqual(updatedChannelConfig))
 		}
 	})
 })
 
 // parsePrivateKey loads the PEM-encoded private key at the specified path.
 func parsePrivateKey(path string) crypto.PrivateKey {
-	pkBytes, err := ioutil.ReadFile(path)
+	pkBytes, err := os.ReadFile(path)
 	Expect(err).NotTo(HaveOccurred())
 	pemBlock, _ := pem.Decode(pkBytes)
 	privateKey, err := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
@@ -254,7 +253,7 @@ func parsePrivateKey(path string) crypto.PrivateKey {
 // parseCertificate loads the PEM-encoded x509 certificate at the specified
 // path.
 func parseCertificate(path string) *x509.Certificate {
-	certBytes, err := ioutil.ReadFile(path)
+	certBytes, err := os.ReadFile(path)
 	Expect(err).NotTo(HaveOccurred())
 	pemBlock, _ := pem.Decode(certBytes)
 	cert, err := x509.ParseCertificate(pemBlock.Bytes)
