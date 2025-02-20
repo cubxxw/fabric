@@ -13,17 +13,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/common/ledger/util"
 	"github.com/hyperledger/fabric/core/ledger/kvledger"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/privacyenabledstate"
 	"github.com/hyperledger/fabric/internal/fileutil"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -493,12 +492,12 @@ func readMetadata(fpath string) (*kvledger.SnapshotSignableMetadata, error) {
 	var mdata kvledger.SnapshotSignableMetadata
 
 	// Open file
-	f, err := ioutil.ReadFile(fpath)
+	f, err := os.ReadFile(fpath)
 	if err != nil {
 		return nil, err
 	}
 	// Unmarshal bytes
-	err = json.Unmarshal([]byte(f), &mdata)
+	err = json.Unmarshal(f, &mdata)
 	if err != nil {
 		return nil, err
 	}

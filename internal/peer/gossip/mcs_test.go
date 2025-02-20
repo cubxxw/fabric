@@ -10,15 +10,13 @@ import (
 	"crypto/sha256"
 	"errors"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
-	pmsp "github.com/hyperledger/fabric-protos-go/msp"
-	protospeer "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp/sw"
+	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	pmsp "github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	protospeer "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/channelconfig"
 	"github.com/hyperledger/fabric/common/policies"
 	"github.com/hyperledger/fabric/common/util"
@@ -28,8 +26,10 @@ import (
 	"github.com/hyperledger/fabric/msp"
 	"github.com/hyperledger/fabric/msp/mgmt"
 	"github.com/hyperledger/fabric/protoutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 //go:generate counterfeiter -o mocks/policy_manager.go -fake-name PolicyManager . policyManager
@@ -91,7 +91,7 @@ func TestPKIidOfCert(t *testing.T) {
 	require.NotNil(t, pkid, "PKID must be different from nil")
 	// Check that pkid is correctly computed
 	id, err := deserializersManager.Deserialize(peerIdentity)
-	require.NoError(t, err, "Failed getting validated identity from [% x]", []byte(peerIdentity))
+	require.NoError(t, err, "Failed getting validated identity from [% x]", peerIdentity)
 	idRaw := append([]byte(id.Mspid), id.IdBytes...)
 	require.NoError(t, err, "Failed marshalling identity identifier [% x]: [%s]", peerIdentity, err)
 	h := sha256.New()
@@ -102,13 +102,13 @@ func TestPKIidOfCert(t *testing.T) {
 	//  The PKI-ID is calculated by concatenating the MspId with IdBytes.
 	// Ensure that additional fields haven't been introduced in the code
 	v := reflect.Indirect(reflect.ValueOf(id)).Type()
-	fieldsThatStartWithXXX := 0
+	fieldsNoExported := 0
 	for i := 0; i < v.NumField(); i++ {
-		if strings.Index(v.Field(i).Name, "XXX_") == 0 {
-			fieldsThatStartWithXXX++
+		if !v.Field(i).IsExported() {
+			fieldsNoExported++
 		}
 	}
-	require.Equal(t, 2+fieldsThatStartWithXXX, v.NumField())
+	require.Equal(t, 2+fieldsNoExported, v.NumField())
 }
 
 func TestPKIidOfNil(t *testing.T) {
@@ -289,28 +289,68 @@ func TestVerifyBlock(t *testing.T) {
 	blockRaw2, msg2 := mockBlock(t, "D", 42, aliceSigner, nil)
 	policyManagerGetter.Managers["D"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msg2
 
-	// - Verify block
-	require.NoError(t, msgCryptoService.VerifyBlock([]byte("C"), 42, blockRaw))
-	// Wrong sequence number claimed
-	err = msgCryptoService.VerifyBlock([]byte("C"), 43, blockRaw)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "but actual seqNum inside block is")
-	delete(policyManagerGetter.Managers, "D")
-	nilPolMgrErr := msgCryptoService.VerifyBlock([]byte("D"), 42, blockRaw2)
-	require.Contains(t, nilPolMgrErr.Error(), "Could not acquire policy manager")
-	require.Error(t, nilPolMgrErr)
-	require.Error(t, msgCryptoService.VerifyBlock([]byte("A"), 42, blockRaw))
-	require.Error(t, msgCryptoService.VerifyBlock([]byte("B"), 42, blockRaw))
+	t.Run("verify block", func(t *testing.T) {
+		require.NoError(t, msgCryptoService.VerifyBlock([]byte("C"), 42, blockRaw))
+		// Wrong sequence number claimed
+		err = msgCryptoService.VerifyBlock([]byte("C"), 43, blockRaw)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "but actual seqNum inside block is")
+		delete(policyManagerGetter.Managers, "D")
+		nilPolMgrErr := msgCryptoService.VerifyBlock([]byte("D"), 42, blockRaw2)
+		require.Contains(t, nilPolMgrErr.Error(), "Could not acquire policy manager")
+		require.Error(t, nilPolMgrErr)
+		require.Error(t, msgCryptoService.VerifyBlock([]byte("A"), 42, blockRaw))
+		require.Error(t, msgCryptoService.VerifyBlock([]byte("B"), 42, blockRaw))
 
-	// - Prepare testing invalid block (wrong data has), Alice signs it.
-	blockRaw, msg = mockBlock(t, "C", 42, aliceSigner, []byte{0})
-	policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msg
+		// - Prepare testing invalid block (wrong data has), Alice signs it.
+		blockRawInvalid, msgInvalid := mockBlock(t, "C", 42, aliceSigner, []byte{0})
+		policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msgInvalid
+		defer func() {
+			policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msg
+		}()
 
-	// - Verify block
-	require.Error(t, msgCryptoService.VerifyBlock([]byte("C"), 42, blockRaw))
+		// - Verify block
+		require.Error(t, msgCryptoService.VerifyBlock([]byte("C"), 42, blockRawInvalid))
 
-	// Check invalid args
-	require.Error(t, msgCryptoService.VerifyBlock([]byte("C"), 42, &common.Block{}))
+		// Check invalid args
+		require.Error(t, msgCryptoService.VerifyBlock([]byte("C"), 42, &common.Block{}))
+	})
+
+	t.Run("verify block attestation", func(t *testing.T) {
+		// An attestation is a signed block with block.Data = nil
+		attestation := blockRaw
+		attestation.Data = nil
+		attestation2 := blockRaw2
+		attestation2.Data = nil
+
+		assert.NoError(t, msgCryptoService.VerifyBlockAttestation("C", attestation))
+		delete(policyManagerGetter.Managers, "D")
+		nilPolMgrErr := msgCryptoService.VerifyBlockAttestation("D", attestation2)
+		assert.Contains(t, nilPolMgrErr.Error(), "Could not acquire policy manager")
+		assert.Error(t, nilPolMgrErr)
+		assert.Error(t, msgCryptoService.VerifyBlockAttestation("A", attestation))
+		assert.Error(t, msgCryptoService.VerifyBlockAttestation("B", attestation))
+
+		// - Prepare testing invalid attestation (wrong data has), Alice signs it.
+		// - Prepare testing invalid attestation (wrong data has), Alice signs it.
+		_, msgInvalid := mockBlock(t, "C", 42, aliceSigner, []byte{0})
+		policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msgInvalid
+		defer func() {
+			policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msg
+		}()
+
+		// - Verify attestation
+		assert.Error(t, msgCryptoService.VerifyBlockAttestation("C", attestation))
+
+		// Check invalid args
+		attestation.Header.DataHash = []byte{0, 1, 2, 3, 4}
+		assert.Error(t, msgCryptoService.VerifyBlockAttestation("C", attestation))
+		attestation.Metadata = nil
+		assert.Error(t, msgCryptoService.VerifyBlockAttestation("C", attestation))
+		attestation.Header = nil
+		assert.Error(t, msgCryptoService.VerifyBlockAttestation("C", attestation))
+		assert.Error(t, msgCryptoService.VerifyBlockAttestation("C", nil))
+	})
 }
 
 func TestVerifyBlockBFT(t *testing.T) {
@@ -368,28 +408,57 @@ func TestVerifyBlockBFT(t *testing.T) {
 	blockRaw2, msg2 := mockBlockBFT(t, "D", 42, aliceSigner, nil)
 	policyManagerGetter.Managers["D"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msg2
 
-	// - Verify block
-	require.NoError(t, msgCryptoService.VerifyBlock([]byte("C"), 42, blockRaw))
-	// Wrong sequence number claimed
-	err = msgCryptoService.VerifyBlock([]byte("C"), 43, blockRaw)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "but actual seqNum inside block is")
-	delete(policyManagerGetter.Managers, "D")
-	nilPolMgrErr := msgCryptoService.VerifyBlock([]byte("D"), 42, blockRaw2)
-	require.Contains(t, nilPolMgrErr.Error(), "Could not acquire policy manager")
-	require.Error(t, nilPolMgrErr)
-	require.Error(t, msgCryptoService.VerifyBlock([]byte("A"), 42, blockRaw))
-	require.Error(t, msgCryptoService.VerifyBlock([]byte("B"), 42, blockRaw))
+	t.Run("verify block", func(t *testing.T) {
+		// - Verify block
+		require.NoError(t, msgCryptoService.VerifyBlock([]byte("C"), 42, blockRaw))
+		// Wrong sequence number claimed
+		err = msgCryptoService.VerifyBlock([]byte("C"), 43, blockRaw)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "but actual seqNum inside block is")
+		delete(policyManagerGetter.Managers, "D")
+		nilPolMgrErr := msgCryptoService.VerifyBlock([]byte("D"), 42, blockRaw2)
+		require.Contains(t, nilPolMgrErr.Error(), "Could not acquire policy manager")
+		require.Error(t, nilPolMgrErr)
+		require.Error(t, msgCryptoService.VerifyBlock([]byte("A"), 42, blockRaw))
+		require.Error(t, msgCryptoService.VerifyBlock([]byte("B"), 42, blockRaw))
 
-	// - Prepare testing invalid block (wrong data has), Alice signs it.
-	blockRaw, msg = mockBlockBFT(t, "C", 42, aliceSigner, []byte{0})
-	policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msg
+		// - Prepare testing invalid block (wrong data has), Alice signs it.
+		blockRawInvalid, msgInvalid := mockBlockBFT(t, "C", 42, aliceSigner, []byte{0})
+		policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msgInvalid
+		defer func() {
+			policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msg
+		}()
+		// - Verify block
+		require.Error(t, msgCryptoService.VerifyBlock([]byte("C"), 42, blockRawInvalid))
 
-	// - Verify block
-	require.Error(t, msgCryptoService.VerifyBlock([]byte("C"), 42, blockRaw))
+		// Check invalid args
+		require.Error(t, msgCryptoService.VerifyBlock([]byte("C"), 42, &common.Block{}))
+	})
 
-	// Check invalid args
-	require.Error(t, msgCryptoService.VerifyBlock([]byte("C"), 42, &common.Block{}))
+	t.Run("verify block attestation", func(t *testing.T) {
+		// An attestation is a signed block with block.Data = nil
+		attestation := blockRaw
+		attestation.Data = nil
+		attestation2 := blockRaw2
+		attestation2.Data = nil
+
+		// - Verify block
+		require.NoError(t, msgCryptoService.VerifyBlockAttestation("C", attestation))
+		nilPolMgrErr := msgCryptoService.VerifyBlockAttestation("D", attestation2)
+		require.Contains(t, nilPolMgrErr.Error(), "Could not acquire policy manager")
+		require.Error(t, nilPolMgrErr)
+		require.Error(t, msgCryptoService.VerifyBlockAttestation("A", attestation))
+		require.Error(t, msgCryptoService.VerifyBlockAttestation("B", attestation))
+
+		// - Prepare testing invalid block (has wrong data), Alice signs it.
+		_, msgInvalid := mockBlockBFT(t, "C", 42, aliceSigner, []byte{0})
+		policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msgInvalid
+		defer func() {
+			policyManagerGetter.Managers["C"].(*mocks.ChannelPolicyManager).Policy.(*mocks.Policy).Deserializer.(*mocks.IdentityDeserializer).Msg = msg
+		}()
+		// - Verify block
+		require.Error(t, msgCryptoService.VerifyBlockAttestation("C", attestation))
+	})
 }
 
 func mockBlock(t *testing.T, channel string, seqNum uint64, localSigner *mocks.SignerSerializer, dataHash []byte) (*common.Block, []byte) {
@@ -405,7 +474,7 @@ func mockBlock(t *testing.T, channel string, seqNum uint64, localSigner *mocks.S
 	if len(dataHash) != 0 {
 		block.Header.DataHash = dataHash
 	} else {
-		block.Header.DataHash = protoutil.BlockDataHash(block.Data)
+		block.Header.DataHash = protoutil.ComputeBlockDataHash(block.Data)
 	}
 
 	// Add signer's signature to the block
@@ -448,7 +517,7 @@ func mockBlockBFT(t *testing.T, channel string, seqNum uint64, localSigner *mock
 	if len(dataHash) != 0 {
 		block.Header.DataHash = dataHash
 	} else {
-		block.Header.DataHash = protoutil.BlockDataHash(block.Data)
+		block.Header.DataHash = protoutil.ComputeBlockDataHash(block.Data)
 	}
 
 	ihdr := &common.IdentifierHeader{

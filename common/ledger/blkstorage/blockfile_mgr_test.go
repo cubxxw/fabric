@@ -8,17 +8,16 @@ package blkstorage
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protowire"
 )
 
 func TestBlockfileMgrBlockReadWrite(t *testing.T) {
@@ -102,7 +101,7 @@ func testBlockfileMgrCrashDuringWriting(t *testing.T, numBlksBeforeSavingBlkfile
 
 	// simulate a crash scenario
 	lastBlockBytes := []byte{}
-	encodedLen := proto.EncodeVarint(uint64(numLastBlockBytes))
+	encodedLen := protowire.AppendVarint(nil, uint64(numLastBlockBytes))
 	randomBytes := testutil.ConstructRandomBytes(t, numLastBlockBytes)
 	lastBlockBytes = append(lastBlockBytes, encodedLen...)
 	lastBlockBytes = append(lastBlockBytes, randomBytes...)
@@ -395,10 +394,9 @@ func TestBlockfileMgrFileRolling(t *testing.T) {
 	blocks := testutil.ConstructTestBlocks(t, 200)
 	size := 0
 	for _, block := range blocks[:100] {
-		by, _, err := serializeBlock(block)
-		require.NoError(t, err, "Error while serializing block")
+		by, _ := serializeBlock(block)
 		blockBytesSize := len(by)
-		encodedLen := proto.EncodeVarint(uint64(blockBytesSize))
+		encodedLen := protowire.AppendVarint(nil, uint64(blockBytesSize))
 		size += blockBytesSize + len(encodedLen)
 	}
 
@@ -467,7 +465,7 @@ func testBlockfileMgrSimulateCrashAtFirstBlockInFile(t *testing.T, deleteBlkfile
 	// move to next file and simulate crash scenario while writing the first block
 	blockfileMgr.moveToNextFile()
 	partialBytesForNextBlock := append(
-		proto.EncodeVarint(uint64(10000)),
+		protowire.AppendVarint(nil, uint64(10000)),
 		[]byte("partialBytesForNextBlock depicting a crash during first block in file")...,
 	)
 	blockfileMgr.currentFileWriter.append(partialBytesForNextBlock, true)
@@ -479,7 +477,7 @@ func testBlockfileMgrSimulateCrashAtFirstBlockInFile(t *testing.T, deleteBlkfile
 
 	// verify that the block file number 1 has been created with partial bytes as a side-effect of crash
 	lastFilePath := blockfileMgr.currentFileWriter.filePath
-	lastFileContent, err := ioutil.ReadFile(lastFilePath)
+	lastFileContent, err := os.ReadFile(lastFilePath)
 	require.NoError(t, err)
 	require.Equal(t, lastFileContent, partialBytesForNextBlock)
 

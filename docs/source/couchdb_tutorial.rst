@@ -28,7 +28,7 @@ and for more information on the Fabric ledger refer to the `Ledger <ledger/ledge
 topic. Follow the tutorial below for details on how to leverage CouchDB in your
 blockchain network.
 
-Throughout this tutorial, we will use the `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/blob/{BRANCH}/asset-transfer-ledger-queries/chaincode-go>`__
+Throughout this tutorial, we will use the `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/blob/main/asset-transfer-ledger-queries/chaincode-go>`__
 as our use case to demonstrate how to use CouchDB with Fabric, including the
 execution of JSON queries against the state database. You should have completed the task
 :doc:`install`.
@@ -102,7 +102,7 @@ in a query, CouchDB requires an index that includes the sorted fields.
    otherwise, the query will fail and an error will be thrown.
 
 To demonstrate building an index, we will use the data from the `Asset transfer ledger queries
-sample <https://github.com/hyperledger/fabric-samples/blob/{BRANCH}/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__.
+sample <https://github.com/hyperledger/fabric-samples/blob/main/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__.
 In this example, the Asset data structure is defined as:
 
 .. code:: javascript
@@ -220,9 +220,37 @@ the CouchDB recommended practice.
   }
 
 
+If you want to add sorting to your indexing, add a sort type. Then you can query result at needed sort. Example below.
+
+.. code:: json
+
+  {
+    "index":{
+      "fields":[
+         {
+            "owner":"desc"
+         },
+         {
+            "color":"desc"
+         },
+         {
+            "size":"desc"
+         }
+      ] // Names of the fields to be queried and sorted for descending.
+   },
+    "ddoc":"index3Doc",
+    "name":"index3",
+    "type":"json"
+  }
+
+.. tip:: Be aware if you want to have good performance in your query, put the most 
+         restrictive field in the first place to limit the results the most. 
+         In our case ``owner`` should be the first value in index ``fields``.
+         Because the ``owner`` carries a unique user identifier.
+
 In general, you should model index fields to match the fields that will be used
 in query filters and sorts. For more details on building an index in JSON
-format refer to the `CouchDB documentation <http://docs.couchdb.org/en/3.2.2/api/database/find.html#db-index>`__.
+format refer to the `CouchDB documentation <http://docs.couchdb.org/en/stable/api/database/find.html#db-index>`__.
 
 .. _cdb-add-index:
 
@@ -236,7 +264,7 @@ chaincode using the :doc:`commands/peerlifecycle` commands. The JSON index files
 must be located under the path ``META-INF/statedb/couchdb/indexes`` which is
 located inside the directory where the chaincode resides.
 
-The `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/tree/{BRANCH}/asset-transfer-ledger-queries/chaincode-go>`__  below illustrates how the index
+The `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/tree/main/asset-transfer-ledger-queries/chaincode-go>`__  below illustrates how the index
 is packaged with the chaincode.
 
 .. image:: images/couchdb_tutorial_pkg_example.png
@@ -360,7 +388,7 @@ Build the query in chaincode
 
 You can perform JSON queries against the data on the ledger using
 queries defined within your chaincode. The `Asset transfer ledger queries sample
-<https://github.com/hyperledger/fabric-samples/blob/{BRANCH}/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__
+<https://github.com/hyperledger/fabric-samples/blob/main/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__
 includes two JSON query functions:
 
   * **QueryAssets**
@@ -369,7 +397,7 @@ includes two JSON query functions:
       where a selector JSON query string can be passed into the function. This query
       would be useful to client applications that need to dynamically build
       their own queries at runtime. For more information on query selectors refer
-      to `CouchDB selector syntax <http://docs.couchdb.org/en/3.2.2/api/database/find.html#find-selectors>`__.
+      to `CouchDB selector syntax <http://docs.couchdb.org/en/stable/api/database/find.html#find-selectors>`__.
 
 
   * **QueryAssetsByOwner**
@@ -396,8 +424,13 @@ command as Org1 to create an asset owned by "tom":
 
 .. code:: bash
 
+    # Set CLI and config paths
+    export PATH=${PWD}/../bin:$PATH
+    export FABRIC_CFG_PATH=$PWD/../config/
+
+    # Environment variables for Org1
     export CORE_PEER_TLS_ENABLED=true
-    export CORE_PEER_LOCALMSPID="Org1MSP"
+    export CORE_PEER_LOCALMSPID=Org1MSP
     export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
     export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
     export CORE_PEER_ADDRESS=localhost:7051
@@ -563,7 +596,7 @@ listener application would iterate through the block transactions and build a da
 store using the key/value writes from each valid transaction's ``rwset``. The
 :doc:`peer_event_services` provide replayable events to ensure the integrity of
 downstream data stores. For an example of how you can use an event listener to write
-data to an external database, visit the `Off chain data sample <https://github.com/hyperledger/fabric-samples/tree/{BRANCH}/off_chain_data>`__
+data to an external database, visit the `Off chain data sample <https://github.com/hyperledger/fabric-samples/tree/main/off_chain_data>`__
 in the Fabric Samples.
 
 .. _cdb-pagination:
@@ -580,7 +613,7 @@ chaincode that executes the query until no more results are returned. For more i
 this `topic on pagination with CouchDB <couchdb_as_state_database.html#couchdb-pagination>`__.
 
 
-We will use the `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/blob/{BRANCH}/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__
+We will use the `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/blob/main/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__
 function ``QueryAssetsWithPagination`` to  demonstrate how
 pagination can be implemented in chaincode and the client application.
 
@@ -600,7 +633,7 @@ total of five assets owned by "tom":
 
 .. code:: bash
 
-    export CORE_PEER_LOCALMSPID="Org1MSP"
+    export CORE_PEER_LOCALMSPID=Org1MSP
     export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
     export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
     export CORE_PEER_ADDRESS=localhost:7051
@@ -700,7 +733,7 @@ no more results will get returned.
 
 For an example of how a client application can iterate over
 JSON query result sets using pagination, search for the ``getQueryResultForQueryStringWithPagination``
-function in the `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/blob/{BRANCH}/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__.
+function in the `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/blob/main/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__.
 
 Range Query Pagination
 ----------------------
@@ -712,7 +745,7 @@ If an ``endKey`` was specified in the range query and the results are exhausted,
 
 For an example of how a client application can iterate over
 range query result sets using pagination, search for the ``GetAssetsByRangeWithPagination``
-function in the `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/blob/{BRANCH}/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__.
+function in the `Asset transfer ledger queries sample <https://github.com/hyperledger/fabric-samples/blob/main/asset-transfer-ledger-queries/chaincode-go/asset_transfer_ledger_chaincode.go>`__.
 
 .. _cdb-update-index:
 
@@ -741,7 +774,7 @@ Iterating on your index definition
 If you have access to your peer's CouchDB state database in a development
 environment, you can iteratively test various indexes in support of
 your chaincode queries. Any changes to chaincode though would require
-redeployment. Use the `CouchDB Fauxton interface <http://docs.couchdb.org/en/3.2.2/fauxton/index.html>`__ or a command
+redeployment. Use the `CouchDB Fauxton interface <http://docs.couchdb.org/en/stable/fauxton/index.html>`__ or a command
 line curl utility to create and update indexes.
 
 .. note:: The Fauxton interface is a web UI for the creation, update, and

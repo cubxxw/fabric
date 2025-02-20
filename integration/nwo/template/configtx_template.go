@@ -141,9 +141,6 @@ Profiles:{{ range .Profiles }}
     {{- if .Orderers }}
     Orderer:
       OrdererType: {{ $w.Consensus.Type }}
-      Addresses:{{ range .Orderers }}{{ with $w.Orderer . }}
-      - 127.0.0.1:{{ $w.OrdererPort . "Listen" }}
-      {{- end }}{{ end }}
       {{- if .Blocks}}
       BatchTimeout: {{ .Blocks.BatchTimeout }}s
       BatchSize:
@@ -158,19 +155,34 @@ Profiles:{{ range .Profiles }}
         PreferredMaxBytes: 512 KB
       {{- end}}
       Capabilities:
-        {{- if eq $w.Consensus.Type "BFT" }}
-        V3_0: true
-        {{- else }}
         V2_0: true
-        {{- end }}
       {{- if eq $w.Consensus.Type "BFT" }}
+      {{- if .SmartBFT}}
+      SmartBFT:
+        RequestBatchMaxCount:      100
+        RequestBatchMaxBytes:      10485760
+        RequestBatchMaxInterval:   50ms
+        IncomingMessageBufferSize: 200
+        RequestPoolSize:           400
+        RequestForwardTimeout:     2s
+        RequestComplainTimeout:    20s
+        RequestAutoRemoveTimeout:  3m
+        ViewChangeResendInterval:  5s
+        ViewChangeTimeout:         20s
+        LeaderHeartbeatTimeout:    {{ .SmartBFT.LeaderHeartbeatTimeout }}s
+        LeaderHeartbeatCount:      {{ .SmartBFT.LeaderHeartbeatCount }}
+        CollectTimeout:            1s
+        SyncOnStart:               false
+        SpeedUpViewChange:         false
+      {{- end }}
       ConsenterMapping:{{ range $index, $orderer := .Orderers }}{{ with $w.Orderer . }}
-      - ID: {{ $index }}
+      - ID: {{ .Id }}
         Host: 127.0.0.1
         Port: {{ $w.OrdererPort . "Cluster" }}
-        MSPID: {{ .Organization }}
+        MSPID: {{ ($w.Organization .Organization).MSPID}}
         ClientTLSCert: {{ $w.OrdererLocalCryptoDir . "tls" }}/server.crt
         ServerTLSCert: {{ $w.OrdererLocalCryptoDir . "tls" }}/server.crt
+        Identity: {{ $w.OrdererSignCert .}}
         {{- end }}{{- end }}
       {{- end }}
       {{- if eq $w.Consensus.Type "etcdraft" }}
@@ -202,8 +214,6 @@ Profiles:{{ range .Profiles }}
           Type: ImplicitMeta
           Rule: ANY Writers
     {{- end }}
-    {{- if .Consortium }}
-    Consortium: {{ .Consortium }}
     Application:
       Capabilities:
       {{- if .AppCapabilities }}{{ range .AppCapabilities }}
@@ -231,14 +241,7 @@ Profiles:{{ range .Profiles }}
         Endorsement:
           Type: ImplicitMeta
           Rule: "MAJORITY Endorsement"
-    {{- else }}
-    Consortiums:{{ range $w.Consortiums }}
-      {{ .Name }}:
-        Organizations:{{ range .Organizations }}
-        - *{{ ($w.Organization .).MSPID }}
-        {{- end }}
-    {{- end }}
-    {{- end }}
+    Consortium: {{ .Consortium }}
 {{- end }}
 {{ end }}
 `

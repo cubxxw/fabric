@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/ledger"
@@ -380,7 +380,7 @@ func testutilCommitBlocks(t *testing.T, l ledger.PeerLedger, bg *testutil.BlockG
 		require.NoError(t, err)
 		blockHash := protoutil.BlockHeaderHash(block.Header)
 		require.Equal(t, &common.BlockchainInfo{
-			Height: uint64(i + 1), CurrentBlockHash: blockHash, PreviousBlockHash: previousBlockHash,
+			Height: i + 1, CurrentBlockHash: blockHash, PreviousBlockHash: previousBlockHash,
 		}, bcInfo)
 		previousBlockHash = blockHash
 	}

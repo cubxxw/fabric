@@ -16,9 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/orderer"
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
+	"github.com/hyperledger/fabric/common/crypto"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -58,7 +59,7 @@ type ClusterService struct {
 
 type AuthRequestSignature struct {
 	Version        int64
-	Timestamp      string
+	Timestamp      []byte
 	FromId         string
 	ToId           string
 	Channel        string
@@ -137,7 +138,7 @@ func (s *ClusterService) VerifyAuthRequest(stream orderer.ClusterNodeService_Ste
 
 	msg, err := asn1.Marshal(AuthRequestSignature{
 		Version:        int64(authReq.Version),
-		Timestamp:      authReq.Timestamp.String(),
+		Timestamp:      EncodeTimestamp(authReq.Timestamp),
 		FromId:         strconv.FormatUint(authReq.FromId, 10),
 		ToId:           strconv.FormatUint(authReq.ToId, 10),
 		SessionBinding: tlsBinding,
@@ -239,7 +240,7 @@ func (s *ClusterService) initializeExpirationCheck(stream orderer.ClusterNodeSer
 	}
 }
 
-func (c *ClusterService) ConfigureNodeCerts(channel string, newNodes []common.Consenter) error {
+func (c *ClusterService) ConfigureNodeCerts(channel string, newNodes []*common.Consenter) error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
 
@@ -258,7 +259,11 @@ func (c *ClusterService) ConfigureNodeCerts(channel string, newNodes []common.Co
 	channelMembership.MemberMapping = make(map[uint64][]byte)
 
 	for _, nodeIdentity := range newNodes {
-		channelMembership.MemberMapping[uint64(nodeIdentity.Id)] = nodeIdentity.Identity
+		sanitizedID, err := crypto.SanitizeX509Cert(nodeIdentity.Identity)
+		if err != nil {
+			return err
+		}
+		channelMembership.MemberMapping[uint64(nodeIdentity.Id)] = sanitizedID
 	}
 
 	// Iterate over existing streams and prune those that should not be there anymore

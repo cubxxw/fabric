@@ -16,12 +16,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-chaincode-go/shim"
-	pcommon "github.com/hyperledger/fabric-protos-go/common"
-	ab "github.com/hyperledger/fabric-protos-go/orderer"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric-chaincode-go/v2/shim"
+	"github.com/hyperledger/fabric-lib-go/bccsp"
+	pcommon "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/policydsl"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/internal/peer/common"
@@ -30,43 +29,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"google.golang.org/protobuf/proto"
 )
-
-// checkSpec to see if chaincode resides within current package capture for language.
-func checkSpec(spec *pb.ChaincodeSpec) error {
-	// Don't allow nil value
-	if spec == nil {
-		return errors.New("expected chaincode specification, nil received")
-	}
-	if spec.ChaincodeId == nil {
-		return errors.New("expected chaincode ID, nil received")
-	}
-
-	return platformRegistry.ValidateSpec(spec.Type.String(), spec.ChaincodeId.Path)
-}
-
-// getChaincodeDeploymentSpec get chaincode deployment spec given the chaincode spec
-func getChaincodeDeploymentSpec(spec *pb.ChaincodeSpec, crtPkg bool) (*pb.ChaincodeDeploymentSpec, error) {
-	var codePackageBytes []byte
-	if crtPkg {
-		var err error
-		if err = checkSpec(spec); err != nil {
-			return nil, err
-		}
-
-		codePackageBytes, err = platformRegistry.GetDeploymentPayload(spec.Type.String(), spec.ChaincodeId.Path)
-		if err != nil {
-			return nil, errors.WithMessage(err, "error getting chaincode package bytes")
-		}
-		chaincodePath, err := platformRegistry.NormalizePath(spec.Type.String(), spec.ChaincodeId.Path)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to normalize chaincode path")
-		}
-		spec.ChaincodeId.Path = chaincodePath
-	}
-
-	return &pb.ChaincodeDeploymentSpec{ChaincodeSpec: spec, CodePackage: codePackageBytes}, nil
-}
 
 // getChaincodeSpec get chaincode spec from the cli cmd parameters
 func getChaincodeSpec(cmd *cobra.Command) (*pb.ChaincodeSpec, error) {
@@ -317,43 +281,6 @@ func checkChaincodeCmdParams(cmd *cobra.Command) error {
 		return errors.Errorf("must supply value for %s name parameter", chainFuncName)
 	}
 
-	if cmd.Name() == instantiateCmdName || cmd.Name() == installCmdName ||
-		cmd.Name() == upgradeCmdName || cmd.Name() == packageCmdName {
-		if chaincodeVersion == common.UndefinedParamValue {
-			return errors.Errorf("chaincode version is not provided for %s", cmd.Name())
-		}
-
-		if escc != common.UndefinedParamValue {
-			logger.Infof("Using escc %s", escc)
-		} else {
-			logger.Info("Using default escc")
-			escc = "escc"
-		}
-
-		if vscc != common.UndefinedParamValue {
-			logger.Infof("Using vscc %s", vscc)
-		} else {
-			logger.Info("Using default vscc")
-			vscc = "vscc"
-		}
-
-		if policy != common.UndefinedParamValue {
-			p, err := policydsl.FromString(policy)
-			if err != nil {
-				return errors.Errorf("invalid policy %s", policy)
-			}
-			policyMarshalled = protoutil.MarshalOrPanic(p)
-		}
-
-		if collectionsConfigFile != common.UndefinedParamValue {
-			var err error
-			_, collectionConfigBytes, err = GetCollectionConfigFromFile(collectionsConfigFile)
-			if err != nil {
-				return errors.WithMessagef(err, "invalid collection configuration in file %s", collectionsConfigFile)
-			}
-		}
-	}
-
 	// Check that non-empty chaincode parameters contain only Args as a key.
 	// Type checking is done later when the JSON is actually unmarshaled
 	// into a pb.ChaincodeInput. To better understand what's going
@@ -376,9 +303,7 @@ func checkChaincodeCmdParams(cmd *cobra.Command) error {
 			return errors.New("non-empty JSON chaincode parameters must contain the following keys: 'Args' or 'Function' and 'Args'")
 		}
 	} else {
-		if cmd == nil || (cmd != chaincodeInstallCmd && cmd != chaincodePackageCmd) {
-			return errors.New("empty JSON chaincode parameters must contain the following keys: 'Args' or 'Function' and 'Args'")
-		}
+		return errors.New("empty JSON chaincode parameters must contain the following keys: 'Args' or 'Function' and 'Args'")
 	}
 
 	return nil
@@ -441,6 +366,8 @@ type ChaincodeCmdFactory struct {
 
 // InitCmdFactory init the ChaincodeCmdFactory with default clients
 func InitCmdFactory(cmdName string, isEndorserRequired, isOrdererRequired bool, cryptoProvider bccsp.BCCSP) (*ChaincodeCmdFactory, error) {
+	logger.Infof("InitCmdFactory: Entry: %s, %t, %t", cmdName, isEndorserRequired, isOrdererRequired)
+
 	var err error
 	var endorserClients []pb.EndorserClient
 	var deliverClients []pb.DeliverClient

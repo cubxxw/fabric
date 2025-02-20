@@ -8,15 +8,13 @@ package gateway
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/gateway"
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/gateway"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/integration/channelparticipation"
 	"github.com/hyperledger/fabric/integration/nwo"
 	"github.com/hyperledger/fabric/protoutil"
@@ -24,6 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
 	ginkgomon "github.com/tedsuo/ifrit/ginkgomon_v2"
+	"google.golang.org/protobuf/proto"
 )
 
 var _ = Describe("GatewayService with endorser discovery", func() {
@@ -40,20 +39,20 @@ var _ = Describe("GatewayService with endorser discovery", func() {
 	)
 
 	loadPeerCert := func(peer *nwo.Peer) string {
-		peerCert, err := ioutil.ReadFile(network.PeerCert(peer))
+		peerCert, err := os.ReadFile(network.PeerCert(peer))
 		Expect(err).NotTo(HaveOccurred())
 		return string(peerCert)
 	}
 
 	BeforeEach(func() {
 		var err error
-		testDir, err = ioutil.TempDir("", "gateway")
+		testDir, err = os.MkdirTemp("", "gateway")
 		Expect(err).NotTo(HaveOccurred())
 
 		client, err := docker.NewClientFromEnv()
 		Expect(err).NotTo(HaveOccurred())
 
-		config := nwo.ThreeOrgEtcdRaftNoSysChan()
+		config := nwo.ThreeOrgEtcdRaft()
 		network = nwo.New(config, testDir, client, StartPort(), components)
 
 		network.GenerateConfigTree()

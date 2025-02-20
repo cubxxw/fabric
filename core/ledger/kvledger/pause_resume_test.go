@@ -9,7 +9,7 @@ package kvledger
 import (
 	"testing"
 
-	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	configtxtest "github.com/hyperledger/fabric/common/configtx/test"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/msgs"
 	"github.com/hyperledger/fabric/core/ledger/mock"
@@ -80,7 +80,7 @@ func TestPauseAndResumeErrors(t *testing.T) {
 	genesisBlock, _ := configtxtest.MakeGenesisBlock(ledgerID)
 	_, err := provider.CreateFromGenesisBlock(genesisBlock)
 	require.NoError(t, err)
-	// purposely set an invalid metatdata
+	// purposely set an invalid metadata
 	require.NoError(t, provider.idStore.db.Put(metadataKey(ledgerID), []byte("invalid"), true))
 
 	// fail if provider is open (e.g., peer is up running)

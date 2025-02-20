@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	cp "github.com/hyperledger/fabric-protos-go/common"
-	dp "github.com/hyperledger/fabric-protos-go/discovery"
-	pb "github.com/hyperledger/fabric-protos-go/gateway"
-	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/common/flogging"
-	"github.com/hyperledger/fabric/common/flogging/mock"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging/mock"
+	cp "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	dp "github.com/hyperledger/fabric-protos-go-apiv2/discovery"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/gateway"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/internal/pkg/gateway/mocks"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/pkg/errors"
@@ -54,6 +54,30 @@ func TestEndorse(t *testing.T) {
 				"g2": {{endorser: peer3Mock, height: 4}, {endorser: peer2Mock, height: 5}},                                              // msp2
 			},
 			expectedEndorsers: []string{"localhost:7051", "peer2:9051"},
+		},
+		{
+			name: "use highest block height local org peer",
+			plan: endorsementPlan{
+				"g1": {{endorser: peer1Mock, height: 5}, {endorser: localhostMock, height: 4}}, // msp1
+			},
+			members: []networkMember{
+				{string(localhostMock.pkiid), localhostMock.address, localhostMock.mspid, 4},
+				{string(peer1Mock.pkiid), peer1Mock.address, peer1Mock.mspid, 5},
+			},
+			localLedgerHeight: 4,
+			expectedEndorsers: []string{peer1Mock.address},
+		},
+		{
+			name: "use local host ledger height",
+			plan: endorsementPlan{
+				"g1": {{endorser: peer1Mock, height: 5}, {endorser: localhostMock, height: 4}}, // msp1
+			},
+			members: []networkMember{
+				{string(localhostMock.pkiid), localhostMock.address, localhostMock.mspid, 4},
+				{string(peer1Mock.pkiid), peer1Mock.address, peer1Mock.mspid, 5},
+			},
+			localLedgerHeight: 6,
+			expectedEndorsers: []string{localhostMock.address},
 		},
 		{
 			name:              "endorse with specified orgs, despite block height",

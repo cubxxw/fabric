@@ -8,14 +8,13 @@ package blkstorage
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"testing"
 
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/ledger/snapshot"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
@@ -425,7 +424,7 @@ func TestBootstrapFromSnapshotErrorPaths(t *testing.T) {
 		require.NoError(t, err)
 		env.provider.Close()
 		env = newTestEnv(t, NewConf(testPath, 0))
-		require.NoError(t, ioutil.WriteFile(bootstrappingSnapshotInfoFile, []byte("junk-data"), 0o644))
+		require.NoError(t, os.WriteFile(bootstrappingSnapshotInfoFile, []byte("junk-data"), 0o644))
 		_, err = env.provider.Open(ledgerID)
 		require.Contains(t, err.Error(), "error while unmarshalling bootstrappingSnapshotInfo")
 	})

@@ -10,18 +10,16 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
-	ab "github.com/hyperledger/fabric-protos-go/orderer"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/rwset/kvrwset"
+	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/integration/channelparticipation"
 	"github.com/hyperledger/fabric/integration/nwo"
 	"github.com/hyperledger/fabric/integration/nwo/commands"
@@ -33,6 +31,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 	"github.com/tedsuo/ifrit"
 	ginkgomon "github.com/tedsuo/ifrit/ginkgomon_v2"
+	"google.golang.org/protobuf/proto"
 )
 
 const channelID = "testchannel"
@@ -53,7 +52,7 @@ var _ = Describe("Pvtdata purge", func() {
 
 	JustBeforeEach(func() {
 		var err error
-		testDir, err = ioutil.TempDir("", "purgedata")
+		testDir, err = os.MkdirTemp("", "purgedata")
 		Expect(err).NotTo(HaveOccurred())
 
 		// Add additional peer before generating config tree
@@ -146,7 +145,7 @@ var _ = Describe("Pvtdata purge", func() {
 
 	When("the purge private data capability is not enabled", func() {
 		BeforeEach(func() {
-			config = nwo.ThreeOrgEtcdRaftNoSysChan()
+			config = nwo.ThreeOrgEtcdRaft()
 			applicationCapabilitiesVersion = "V2_0"
 		})
 
@@ -165,13 +164,13 @@ var _ = Describe("Pvtdata purge", func() {
 				WaitForEvent: true,
 			}
 
-			marblechaincodeutil.AssertInvokeChaincodeFails(network, org2Peer0, purgeCommand, "Failed to purge state:PURGE_PRIVATE_DATA failed: transaction ID: [a-f0-9]{64}: purge private data is not enabled, channel application capability of V2_5 or later is required")
+			marblechaincodeutil.AssertInvokeChaincodeFails(network, org2Peer0, purgeCommand, "failed: transaction ID: [a-f0-9]{64}: purge private data is not enabled, channel application capability of V2_5 or later is required")
 		})
 	})
 
 	When("the purge private data capability is enabled", func() {
 		BeforeEach(func() {
-			config = nwo.ThreeOrgEtcdRaftNoSysChan()
+			config = nwo.ThreeOrgEtcdRaft()
 			config.Profiles[0].Blocks = &nwo.Blocks{
 				BatchTimeout:      1,
 				MaxMessageCount:   30,

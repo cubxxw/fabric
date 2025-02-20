@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	bccsp "github.com/hyperledger/fabric/bccsp/factory"
-	"github.com/hyperledger/fabric/common/flogging"
+	bccsp "github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric/common/viperutil"
 	coreconfig "github.com/hyperledger/fabric/core/config"
 	"github.com/hyperledger/fabric/internal/pkg/comm"
@@ -38,11 +38,12 @@ type General struct {
 	TLS               TLS
 	Cluster           Cluster
 	Keepalive         Keepalive
+	Backoff           Backoff
 	ConnectionTimeout time.Duration
-	GenesisMethod     string // For compatibility only, will be replaced by BootstrapMethod
-	GenesisFile       string // For compatibility only, will be replaced by BootstrapFile
-	BootstrapMethod   string
-	BootstrapFile     string
+	GenesisMethod     string // Deprecated: For compatibility only, will be replaced by BootstrapMethod
+	GenesisFile       string // Deprecated: For compatibility only, will be replaced by BootstrapFile
+	BootstrapMethod   string // Deprecated: System channel is no longer supported.
+	BootstrapFile     string // Deprecated: System channel is no longer supported.
 	Profile           Profile
 	LocalMSPDir       string
 	LocalMSPID        string
@@ -50,26 +51,27 @@ type General struct {
 	Authentication    Authentication
 	MaxRecvMsgSize    int32
 	MaxSendMsgSize    int32
+	Throttling        Throttling
 }
 
 type Cluster struct {
-	ListenAddress                        string
-	ListenPort                           uint16
-	ServerCertificate                    string
-	ServerPrivateKey                     string
-	ClientCertificate                    string
-	ClientPrivateKey                     string
-	RootCAs                              []string
-	DialTimeout                          time.Duration
-	RPCTimeout                           time.Duration
-	ReplicationBufferSize                int
-	ReplicationPullTimeout               time.Duration
-	ReplicationRetryTimeout              time.Duration
-	ReplicationBackgroundRefreshInterval time.Duration
-	ReplicationMaxRetries                int
-	SendBufferSize                       int
-	CertExpirationWarningThreshold       time.Duration
-	TLSHandshakeTimeShift                time.Duration
+	ListenAddress                  string
+	ListenPort                     uint16
+	ServerCertificate              string
+	ServerPrivateKey               string
+	ClientCertificate              string
+	ClientPrivateKey               string
+	RootCAs                        []string
+	DialTimeout                    time.Duration
+	RPCTimeout                     time.Duration
+	ReplicationBufferSize          int
+	ReplicationPullTimeout         time.Duration
+	ReplicationRetryTimeout        time.Duration
+	ReplicationMaxRetries          int
+	ReplicationPolicy              string // BFT: "simple" | "consensus" (default); etcdraft: ignored, always "simple"
+	SendBufferSize                 int
+	CertExpirationWarningThreshold time.Duration
+	TLSHandshakeTimeShift          time.Duration
 }
 
 // Keepalive contains configuration for gRPC servers.
@@ -77,6 +79,13 @@ type Keepalive struct {
 	ServerMinInterval time.Duration
 	ServerInterval    time.Duration
 	ServerTimeout     time.Duration
+}
+
+// Backoff defines the configuration options for GRPC client.
+type Backoff struct {
+	BaseDelay  time.Duration
+	Multiplier float64
+	MaxDelay   time.Duration
 }
 
 // TLS contains configuration for TLS connections.
@@ -141,10 +150,23 @@ type Admin struct {
 	TLS           TLS
 }
 
+// Throttling defines a max rate of transactions per client.
+// The effective rate per client is the rate defined divided equally
+// by all clients, until the clients cease from sending transactions
+// and inactivity timeout expires for them.
+type Throttling struct {
+	// Rate is the maximum rate for all clients combined.
+	Rate int
+	// InactivityTimeout defines the time frame after which
+	// inactive clients are pruned from memory and are not considered
+	// when allocating the budget for throttling per client.
+	InactivityTimeout time.Duration
+}
+
 // ChannelParticipation provides the channel participation API configuration for the orderer.
 // Channel participation uses the same ListenAddress and TLS settings of the Operations service.
 type ChannelParticipation struct {
-	Enabled            bool
+	Enabled            bool // Deprecated: always overridden to 'true'
 	MaxRequestBodySize uint32
 }
 
@@ -153,31 +175,33 @@ var Defaults = TopLevel{
 	General: General{
 		ListenAddress:   "127.0.0.1",
 		ListenPort:      7050,
-		BootstrapMethod: "file",
-		BootstrapFile:   "genesisblock",
+		BootstrapMethod: "none",
 		Profile: Profile{
 			Enabled: false,
 			Address: "0.0.0.0:6060",
 		},
 		Cluster: Cluster{
-			ReplicationMaxRetries:                12,
-			RPCTimeout:                           time.Second * 7,
-			DialTimeout:                          time.Second * 5,
-			ReplicationBufferSize:                20971520,
-			SendBufferSize:                       100,
-			ReplicationBackgroundRefreshInterval: time.Minute * 5,
-			ReplicationRetryTimeout:              time.Second * 5,
-			ReplicationPullTimeout:               time.Second * 5,
-			CertExpirationWarningThreshold:       time.Hour * 24 * 7,
+			ReplicationMaxRetries:          12,
+			RPCTimeout:                     time.Second * 7,
+			DialTimeout:                    time.Second * 5,
+			ReplicationBufferSize:          20971520,
+			SendBufferSize:                 100,
+			ReplicationRetryTimeout:        time.Second * 5,
+			ReplicationPullTimeout:         time.Second * 5,
+			CertExpirationWarningThreshold: time.Hour * 24 * 7,
+			ReplicationPolicy:              "consensus", // BFT default; on etcdraft it is ignored
 		},
 		LocalMSPDir: "msp",
 		LocalMSPID:  "SampleOrg",
 		BCCSP:       bccsp.GetDefaultOpts(),
 		Authentication: Authentication{
-			TimeWindow: time.Duration(15 * time.Minute),
+			TimeWindow: 15 * time.Minute,
 		},
 		MaxRecvMsgSize: comm.DefaultMaxRecvMsgSize,
 		MaxSendMsgSize: comm.DefaultMaxSendMsgSize,
+		Throttling: Throttling{
+			InactivityTimeout: time.Second * 5,
+		},
 	},
 	FileLedger: FileLedger{
 		Location: "/var/hyperledger/production/orderer",
@@ -193,7 +217,7 @@ var Defaults = TopLevel{
 		Provider: "disabled",
 	},
 	ChannelParticipation: ChannelParticipation{
-		Enabled:            false,
+		Enabled:            true,
 		MaxRequestBodySize: 1024 * 1024,
 	},
 	Admin: Admin{
@@ -294,14 +318,6 @@ func (c *TopLevel) completeInitialization(configDir string) {
 			} else {
 				c.General.BootstrapMethod = Defaults.General.BootstrapMethod
 			}
-		case c.General.BootstrapFile == "":
-			if c.General.GenesisFile != "" {
-				// This is to keep the compatibility with old config file that uses genesisfile
-				logger.Warn("General.GenesisFile should be replaced by General.BootstrapFile")
-				c.General.BootstrapFile = c.General.GenesisFile
-			} else {
-				c.General.BootstrapFile = Defaults.General.BootstrapFile
-			}
 		case c.General.Cluster.RPCTimeout == 0:
 			c.General.Cluster.RPCTimeout = Defaults.General.Cluster.RPCTimeout
 		case c.General.Cluster.DialTimeout == 0:
@@ -316,10 +332,11 @@ func (c *TopLevel) completeInitialization(configDir string) {
 			c.General.Cluster.ReplicationPullTimeout = Defaults.General.Cluster.ReplicationPullTimeout
 		case c.General.Cluster.ReplicationRetryTimeout == 0:
 			c.General.Cluster.ReplicationRetryTimeout = Defaults.General.Cluster.ReplicationRetryTimeout
-		case c.General.Cluster.ReplicationBackgroundRefreshInterval == 0:
-			c.General.Cluster.ReplicationBackgroundRefreshInterval = Defaults.General.Cluster.ReplicationBackgroundRefreshInterval
 		case c.General.Cluster.CertExpirationWarningThreshold == 0:
 			c.General.Cluster.CertExpirationWarningThreshold = Defaults.General.Cluster.CertExpirationWarningThreshold
+		case (c.General.Cluster.ReplicationPolicy != "simple") && (c.General.Cluster.ReplicationPolicy != "consensus"):
+			logger.Infof("General.Cluster.ReplicationPolicy is `%s`, setting to `%s`", c.General.Cluster.ReplicationPolicy, Defaults.General.Cluster.ReplicationPolicy)
+			c.General.Cluster.ReplicationPolicy = Defaults.General.Cluster.ReplicationPolicy
 
 		case c.General.Profile.Enabled && c.General.Profile.Address == "":
 			logger.Infof("Profiling enabled and General.Profile.Address unset, setting to %s", Defaults.General.Profile.Address)
@@ -336,6 +353,10 @@ func (c *TopLevel) completeInitialization(configDir string) {
 			logger.Infof("General.Authentication.TimeWindow unset, setting to %s", Defaults.General.Authentication.TimeWindow)
 			c.General.Authentication.TimeWindow = Defaults.General.Authentication.TimeWindow
 
+		case !c.ChannelParticipation.Enabled:
+			logger.Info("General.ChannelParticipation.Enabled was set to false, setting to true")
+			c.ChannelParticipation.Enabled = true
+
 		case c.Admin.TLS.Enabled && !c.Admin.TLS.ClientAuthRequired:
 			logger.Panic("Admin.TLS.ClientAuthRequired must be set to true if Admin.TLS.Enabled is set to true")
 
@@ -345,6 +366,9 @@ func (c *TopLevel) completeInitialization(configDir string) {
 		case c.General.MaxSendMsgSize == 0:
 			logger.Infof("General.MaxSendMsgSize is unset, setting to %v", Defaults.General.MaxSendMsgSize)
 			c.General.MaxSendMsgSize = Defaults.General.MaxSendMsgSize
+		case c.General.Throttling.InactivityTimeout == 0:
+			logger.Infof("General.Throttling.InactivityTimeout is unset, setting to %v", Defaults.General.Throttling.InactivityTimeout)
+			c.General.Throttling.InactivityTimeout = Defaults.General.Throttling.InactivityTimeout
 		default:
 			return
 		}

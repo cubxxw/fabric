@@ -13,9 +13,9 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/metrics"
 	"github.com/hyperledger/fabric/common/ledger/dataformat"
-	"github.com/hyperledger/fabric/common/metrics"
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/hyperledger/fabric/core/ledger/internal/version"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb"
@@ -231,7 +231,7 @@ func (provider *VersionedDBProvider) Drop(dbName string) error {
 		}
 	}
 	if err := dropDB(provider.couchInstance, metadataDBName); err != nil {
-		logger.Errorw("Error dropping metatdataDB", "channel", dbName, "error", err)
+		logger.Errorw("Error dropping metadataDB", "channel", dbName, "error", err)
 		return err
 	}
 

@@ -9,7 +9,7 @@ package privdata
 import (
 	"testing"
 
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/policydsl"
 	"github.com/hyperledger/fabric/core/chaincode/implicitcollection"
 	"github.com/hyperledger/fabric/msp"
@@ -49,17 +49,6 @@ func TestMembershipInfoProvider(t *testing.T) {
 
 	// verify membership provider returns false and nil when collection policy config is invalid
 	res, err = membershipProvider.AmMemberOf("test1", getBadAccessPolicy([]string{"signer0"}, 1))
-	require.False(t, res)
-	require.Nil(t, err)
-
-	// verify membership provider with empty mspID and fall back to default access policy evaluation returns true
-	membershipProvider = NewMembershipInfoProvider("", peerSelfSignedData, identityDeserializer)
-	res, err = membershipProvider.AmMemberOf("test1", getAccessPolicy([]string{"peer0", "peer1"}))
-	require.True(t, res)
-	require.Nil(t, err)
-
-	// verify membership provider with empty mspID and fall back to default access policy evaluation returns false
-	res, err = membershipProvider.AmMemberOf("test1", getAccessPolicy([]string{"peer2", "peer3"}))
 	require.False(t, res)
 	require.Nil(t, err)
 }

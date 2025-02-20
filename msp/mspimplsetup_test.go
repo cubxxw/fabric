@@ -10,8 +10,10 @@ import (
 	"crypto/x509"
 	"testing"
 
-	"github.com/hyperledger/fabric-protos-go/msp"
-
+	"github.com/hyperledger/fabric-lib-go/bccsp"
+	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	"github.com/hyperledger/fabric/common/crypto/tlsgen"
 	"github.com/onsi/gomega"
 )
 
@@ -67,18 +69,15 @@ U98sznvJPRCkRiwYp5L9C5Xq72CHG/3M6cmoN0Cl0xjZicfpfnZSA/ix
 -----END CERTIFICATE-----`
 
 	caExpired = `-----BEGIN CERTIFICATE-----
-MIICODCCAd+gAwIBAgIUCpmti37GM0i87c7H9JXnAnXlkeQwCgYIKoZIzj0EAwIw
-WDELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNh
-biBGcmFuY2lzY28xDTALBgNVBAoMBE9yZzIxDTALBgNVBAMMBE9yZzIwHhcNMjIw
-MjE1MjA1NzQ5WhcNMjIwMjE2MjA1NzQ5WjBYMQswCQYDVQQGEwJVUzETMBEGA1UE
-CAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwE
-T3JnMjENMAsGA1UEAwwET3JnMjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABD9x
-9DArA8shjxhqajd9OjTThUoJAHMCKXEORYaN8p/sofXJYYBJvg9y2zEOuevB7++p
-PxhMmNISxt0U5IGlOlSjgYYwgYMwHQYDVR0OBBYEFLqzZtVcEWu2pw4IkpClBg9f
-S4EEMB8GA1UdIwQYMBaAFLqzZtVcEWu2pw4IkpClBg9fS4EEMA8GA1UdEwEB/wQF
-MAMBAf8wCwYDVR0PBAQDAgGmMA8GA1UdEQQIMAaCBE9yZzIwEgYDVR0TAQH/BAgw
-BgEB/wIBADAKBggqhkjOPQQDAgNHADBEAiAccYeHn6h6Q1AA2fZc88sYgReSDSGY
-MsALS92an024EQIgcFMjj0D0j2NhcjULCu0L7aGKac1q8XuCcvzfUdfbsdM=
+MIIBmTCCAUCgAwIBAgIRAKso9vIBAvgOF6UGPP8vGDowCgYIKoZIzj0EAwIwFjEU
+MBIGA1UEChMLZXhhbXBsZS5jb20wHhcNMjIwODI5MjAyMTAyWhcNMjIwODMwMDgy
+MTAyWjAWMRQwEgYDVQQKEwtleGFtcGxlLmNvbTBZMBMGByqGSM49AgEGCCqGSM49
+AwEHA0IABGpznCzppVILyqMvvsl3LRyDXtn4AlkMgIK2xz7NfIVO87+eSgNN99+T
+9HirAxJzSE8y6lGnkxSzXCFvq3d+NmmjbzBtMA4GA1UdDwEB/wQEAwICpDATBgNV
+HSUEDDAKBggrBgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBS+XIzV
+cdTgpwkmt+pZUBaP+n4QUDAWBgNVHREEDzANggtleGFtcGxlLmNvbTAKBggqhkjO
+PQQDAgNHADBEAiBO27vUJzZtX3WXXCbzyWMX8cTeKcsJd90bijBKC1sRSQIgEEVI
+oVYZAX2M8G3clTu+f6Si5KrRezNflbVHmvCrJWM=
 -----END CERTIFICATE-----`
 )
 
@@ -128,6 +127,43 @@ func TestTLSCAValidation(t *testing.T) {
 		})
 		gt.Expect(err).To(gomega.MatchError("CA Certificate problem with Subject Key Identifier extension, (SN: ab0ae311f3e32036): subjectKeyIdentifier not found in certificate"))
 	})
+}
+
+func TestMalformedCertsChainSetup(t *testing.T) {
+	gt := gomega.NewGomegaWithT(t)
+
+	ca, err := tlsgen.NewCA()
+	gt.Expect(err).NotTo(gomega.HaveOccurred())
+
+	inter, err := ca.NewIntermediateCA()
+	gt.Expect(err).NotTo(gomega.HaveOccurred())
+
+	cp, err := sw.NewDefaultSecurityLevelWithKeystore(sw.NewDummyKeyStore())
+	gt.Expect(err).NotTo(gomega.HaveOccurred())
+
+	cp.GetHash(&bccsp.SHA256Opts{})
+	mspImpl := &bccspmsp{
+		opts:  &x509.VerifyOptions{Roots: x509.NewCertPool(), Intermediates: x509.NewCertPool()},
+		bccsp: cp,
+		cryptoConfig: &msp.FabricCryptoConfig{
+			IdentityIdentifierHashFunction: "SHA256",
+		},
+	}
+
+	// Add root CA certificate
+	// cert, err := mspImpl.getCertFromPem([]byte(ca.CertBytes()))
+	certInter, err := mspImpl.getCertFromPem(inter.CertBytes())
+	gt.Expect(err).NotTo(gomega.HaveOccurred())
+	mspImpl.opts.Roots.AddCert(certInter)
+	mspImpl.rootCerts = []Identity{&identity{cert: certInter}}
+
+	err = mspImpl.finalizeSetupCAs()
+	gt.Expect(err).NotTo(gomega.HaveOccurred())
+
+	// Extract identity from the leaf certificate
+	_, _, err = mspImpl.getIdentityFromConf(inter.CertBytes())
+	gt.Expect(err).To(gomega.HaveOccurred())
+	gt.Expect(err.Error()).To(gomega.ContainSubstring("failed to traverse certificate verification chain"))
 }
 
 func TestCAValidation(t *testing.T) {

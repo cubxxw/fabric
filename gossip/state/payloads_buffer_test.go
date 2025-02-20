@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	proto "github.com/hyperledger/fabric-protos-go/gossip"
+	proto "github.com/hyperledger/fabric-protos-go-apiv2/gossip"
 	"github.com/hyperledger/fabric/gossip/util"
 	"github.com/stretchr/testify/require"
 )
@@ -108,7 +108,7 @@ func TestPayloadsBufferImpl_ConcurrentPush(t *testing.T) {
 	concurrency := 10
 
 	buffer := NewPayloadsBuffer(nextSeqNum)
-	require.Equal(t, buffer.Next(), uint64(nextSeqNum))
+	require.Equal(t, buffer.Next(), nextSeqNum)
 
 	startWG := sync.WaitGroup{}
 	startWG.Add(1)

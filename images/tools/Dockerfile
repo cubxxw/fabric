@@ -50,7 +50,10 @@ RUN make tools GO_TAGS=${GO_TAGS} FABRIC_VER=${FABRIC_VER}
 ARG UBUNTU_VER
 FROM ubuntu:${UBUNTU_VER}
 
+ARG TARGETARCH
+ARG TARGETOS
 ARG FABRIC_VER
+ARG GO_VER
 
 RUN apt update && apt install -y \
     bash \
@@ -58,12 +61,15 @@ RUN apt update && apt install -y \
     jq \
     tzdata
 
+RUN curl -sL https://go.dev/dl/go${GO_VER}.${TARGETOS}-${TARGETARCH}.tar.gz | tar zxvf - -C /usr/local
+ENV PATH="/usr/local/go/bin:$PATH"
+
 # set up nsswitch.conf for Go's "netgo" implementation
 # - https://github.com/golang/go/blob/go1.9.1/src/net/conf.go#L194-L275
 # - docker run --rm debian:stretch grep '^hosts:' /etc/nsswitch.conf
 RUN echo 'hosts: files dns' > /etc/nsswitch.conf
 
-ENV     FABRIC_CFG_PATH /var/hyperledger/fabric/config
+ENV     FABRIC_CFG_PATH /etc/hyperledger/fabric
 ENV     FABRIC_VER      ${FABRIC_VER}
 
 COPY    --from=builder  sampleconfig    ${FABRIC_CFG_PATH}

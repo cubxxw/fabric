@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-protos-go/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/gossip"
 	"github.com/hyperledger/fabric/gossip/comm"
 	"github.com/hyperledger/fabric/gossip/discovery"
 	"github.com/hyperledger/fabric/gossip/gossip/algo"
@@ -39,7 +39,7 @@ type pullMsg struct {
 	msg         *protoext.SignedGossipMessage
 }
 
-// GetSourceMessage Returns the SignedGossipMessage the ReceivedMessage was
+// GetSourceEnvelope Returns the SignedGossipMessage the ReceivedMessage was
 // constructed with
 func (pm *pullMsg) GetSourceEnvelope() *gossip.Envelope {
 	return pm.msg.Envelope

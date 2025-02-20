@@ -11,19 +11,18 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/discovery"
-	"github.com/hyperledger/fabric-protos-go/gossip"
-	"github.com/hyperledger/fabric-protos-go/msp"
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/discovery"
+	"github.com/hyperledger/fabric-protos-go-apiv2/gossip"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/chaincode"
 	"github.com/hyperledger/fabric/common/policies"
 	"github.com/hyperledger/fabric/common/policydsl"
@@ -41,6 +40,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -271,7 +272,7 @@ var (
 )
 
 func loadFileOrPanic(file string) []byte {
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	if err != nil {
 		panic(err)
 	}
@@ -417,8 +418,7 @@ func TestClient(t *testing.T) {
 		mychannel := r.ForChannel("mychannel")
 		conf, err := mychannel.Config()
 		require.NoError(t, err)
-		require.Equal(t, expectedConf.Msps, conf.Msps)
-		require.Equal(t, expectedConf.Orderers, conf.Orderers)
+		require.True(t, proto.Equal(expectedConf, conf))
 		peers, err := mychannel.Peers()
 		require.NoError(t, err)
 		// We should see all peers as provided above
@@ -603,7 +603,7 @@ func TestBadResponses(t *testing.T) {
 	defer svc.shutdown()
 
 	connect := func() (*grpc.ClientConn, error) {
-		return grpc.Dial(fmt.Sprintf("localhost:%d", svc.port), grpc.WithInsecure())
+		return grpc.Dial(fmt.Sprintf("localhost:%d", svc.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	auth := &discovery.AuthInfo{
@@ -861,8 +861,8 @@ func peerIdentity(mspID string, i int) api.PeerIdentityInfo {
 	}
 	b, _ := proto.Marshal(sID)
 	return api.PeerIdentityInfo{
-		Identity:     api.PeerIdentityType(b),
-		PKIId:        gossipcommon.PKIidType(p),
+		Identity:     b,
+		PKIId:        p,
 		Organization: api.OrgIdentityType(mspID),
 	}
 }

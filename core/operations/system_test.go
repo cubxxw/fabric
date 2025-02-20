@@ -11,19 +11,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/prometheus"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/statsd"
 	"github.com/hyperledger/fabric-lib-go/healthz"
 	"github.com/hyperledger/fabric/common/fabhttp"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
-	"github.com/hyperledger/fabric/common/metrics/prometheus"
-	"github.com/hyperledger/fabric/common/metrics/statsd"
 	"github.com/hyperledger/fabric/core/operations"
 	"github.com/hyperledger/fabric/core/operations/fakes"
 	. "github.com/onsi/ginkgo/v2"
@@ -47,7 +47,7 @@ var _ = Describe("System", func() {
 
 	BeforeEach(func() {
 		var err error
-		tempDir, err = ioutil.TempDir("", "opssys")
+		tempDir, err = os.MkdirTemp("", "opssys")
 		Expect(err).NotTo(HaveOccurred())
 
 		generateCertificates(tempDir)
@@ -134,7 +134,7 @@ var _ = Describe("System", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))
 		Expect(resp.Header.Get("Content-Type")).To(Equal("text/plain; charset=utf-8"))
-		buff, err := ioutil.ReadAll(resp.Body)
+		buff, err := io.ReadAll(resp.Body)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(buff)).To(Equal("secure"))
 		resp.Body.Close()
@@ -181,7 +181,7 @@ var _ = Describe("System", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(resp.Header.Get("Content-Type")).To(Equal("text/plain; charset=utf-8"))
-			buff, err := ioutil.ReadAll(resp.Body)
+			buff, err := io.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(buff)).To(Equal("insecure"))
 			resp.Body.Close()
@@ -199,7 +199,8 @@ var _ = Describe("System", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err = unauthClient.Get(fmt.Sprintf("https://%s/healthz", system.Addr()))
-			Expect(err).To(MatchError(ContainSubstring("remote error: tls: bad certificate")))
+			Expect(err).To(BeAssignableToTypeOf(&url.Error{}))
+			Expect(err.(*url.Error).Err.Error()).To(ContainSubstring("remote error: tls: certificate required"))
 		})
 	})
 
@@ -275,7 +276,7 @@ var _ = Describe("System", func() {
 		resp, err := client.Get(fmt.Sprintf("https://%s/healthz", system.Addr()))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(http.StatusServiceUnavailable))
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		Expect(err).NotTo(HaveOccurred())
 		resp.Body.Close()
 
@@ -324,7 +325,7 @@ var _ = Describe("System", func() {
 			resp, err := client.Get(metricsURL)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(body).To(ContainSubstring("# TYPE go_gc_duration_seconds summary"))
@@ -342,7 +343,7 @@ var _ = Describe("System", func() {
 			resp, err := client.Get(metricsURL)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(body)).To(ContainSubstring("# TYPE fabric_version gauge"))

@@ -12,13 +12,13 @@ import (
 	"math"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/msp"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
 	configtxtest "github.com/hyperledger/fabric/common/configtx/test"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/hyperledger/fabric/protoutil/mocks"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var testChannelID = "myuniquetestchainid"
@@ -36,7 +36,9 @@ func TestNewBlock(t *testing.T) {
 	require.Equal(t, []byte("datahash"), block.Header.PreviousHash, "Incorrect previous hash")
 	require.NotNil(t, block.GetData())
 	require.NotNil(t, block.GetMetadata())
-	block.GetHeader().DataHash = protoutil.BlockDataHash(data)
+	block.GetHeader().DataHash = protoutil.ComputeBlockDataHash(data)
+
+	dataHash := protoutil.ComputeBlockDataHash(data)
 
 	asn1Bytes, err := asn1.Marshal(struct {
 		Number       int64
@@ -44,7 +46,7 @@ func TestNewBlock(t *testing.T) {
 		DataHash     []byte
 	}{
 		Number:       0,
-		DataHash:     protoutil.BlockDataHash(data),
+		DataHash:     dataHash,
 		PreviousHash: []byte("datahash"),
 	})
 	headerHash := sha256.Sum256(asn1Bytes)
@@ -488,4 +490,131 @@ func TestBlockSignatureVerifierByCreator(t *testing.T) {
 	signatureSet := policies.EvaluateSignedDataArgsForCall(0)
 	require.Len(t, signatureSet, 1)
 	require.Equal(t, []byte("creator1"), signatureSet[0].Identity)
+}
+
+func TestVerifyTransactionsAreWellFormed(t *testing.T) {
+	originalBlock := &cb.Block{
+		Data: &cb.BlockData{
+			Data: [][]byte{
+				marshalOrPanic(&cb.Envelope{
+					Payload:   []byte{1, 2, 3},
+					Signature: []byte{4, 5, 6},
+				}),
+				marshalOrPanic(&cb.Envelope{
+					Payload:   []byte{7, 8, 9},
+					Signature: []byte{10, 11, 12},
+				}),
+			},
+		},
+	}
+
+	forgedBlock := proto.Clone(originalBlock).(*cb.Block)
+	tmp := make([]byte, len(forgedBlock.Data.Data[0])+len(forgedBlock.Data.Data[1]))
+	copy(tmp, forgedBlock.Data.Data[0])
+	copy(tmp[len(forgedBlock.Data.Data[0]):], forgedBlock.Data.Data[1])
+	forgedBlock.Data.Data = [][]byte{tmp} // Replace transactions {0,1} with transaction {0 || 1}
+
+	for _, tst := range []struct {
+		name          string
+		expectedError string
+		block         *cb.Block
+	}{
+		{
+			name: "config block",
+			block: &cb.Block{Data: &cb.BlockData{
+				Data: [][]byte{
+					protoutil.MarshalOrPanic(
+						&cb.Envelope{
+							Payload: protoutil.MarshalOrPanic(&cb.Payload{
+								Header: &cb.Header{
+									ChannelHeader: protoutil.MarshalOrPanic(&cb.ChannelHeader{
+										Type: int32(cb.HeaderType_CONFIG),
+									}),
+								},
+							}),
+						}),
+				},
+			}},
+		},
+		{
+			name:          "no block data",
+			block:         &cb.Block{},
+			expectedError: "empty block",
+		},
+		{
+			name:          "no transactions",
+			block:         &cb.Block{Data: &cb.BlockData{}},
+			expectedError: "empty block",
+		},
+		{
+			name: "single transaction",
+			block: &cb.Block{Data: &cb.BlockData{Data: [][]byte{marshalOrPanic(&cb.Envelope{
+				Payload:   []byte{1, 2, 3},
+				Signature: []byte{4, 5, 6},
+			})}}},
+		},
+		{
+			name:  "good block",
+			block: originalBlock,
+		},
+		{
+			name:          "forged block",
+			block:         forgedBlock,
+			expectedError: "transaction 0 has 10 trailing bytes",
+		},
+		{
+			name:          "no signature",
+			expectedError: "transaction 0 has no signature",
+			block: &cb.Block{
+				Data: &cb.BlockData{
+					Data: [][]byte{
+						marshalOrPanic(&cb.Envelope{
+							Payload: []byte{1, 2, 3},
+						}),
+					},
+				},
+			},
+		},
+		{
+			name:          "no payload",
+			expectedError: "transaction 0 has no payload",
+			block: &cb.Block{
+				Data: &cb.BlockData{
+					Data: [][]byte{
+						marshalOrPanic(&cb.Envelope{
+							Signature: []byte{4, 5, 6},
+						}),
+					},
+				},
+			},
+		},
+		{
+			name:          "transaction invalid",
+			expectedError: "cannot parse invalid wire-format data",
+			block: &cb.Block{
+				Data: &cb.BlockData{
+					Data: [][]byte{
+						marshalOrPanic(&cb.Envelope{
+							Payload:   []byte{1, 2, 3},
+							Signature: []byte{4, 5, 6},
+						})[9:],
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tst.name, func(t *testing.T) {
+			if tst.block == nil || tst.block.Data == nil {
+				err := protoutil.VerifyTransactionsAreWellFormed(tst.block.Data)
+				require.EqualError(t, err, "empty block")
+			} else {
+				err := protoutil.VerifyTransactionsAreWellFormed(tst.block.Data)
+				if tst.expectedError == "" {
+					require.NoError(t, err)
+				} else {
+					require.Contains(t, err.Error(), tst.expectedError)
+				}
+			}
+		})
+	}
 }

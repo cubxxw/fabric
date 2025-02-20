@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
 )
 
 var logger = flogging.MustGetLogger("chaincode.platform.metadata")
@@ -67,8 +67,7 @@ func ValidateMetadataFile(filePathName string, fileBytes []byte) error {
 	}
 
 	// If the file is not valid for the given directory-based validator, return the corresponding error
-	err := fileValidator(filePathName, fileBytes)
-	if err != nil {
+	if err := fileValidator(filePathName, fileBytes); err != nil {
 		return err
 	}
 
@@ -144,8 +143,7 @@ func couchdbIndexFileValidator(fileName string, fileBytes []byte) error {
 	}
 
 	// validate the index definition
-	err := validateIndexJSON(indexDefinition)
-	if err != nil {
+	if err := validateIndexJSON(indexDefinition); err != nil {
 		return &InvalidIndexContentError{fmt.Sprintf("Index metadata file [%s] is not a valid index definition: %s", fileName, err)}
 	}
 
@@ -155,7 +153,7 @@ func couchdbIndexFileValidator(fileName string, fileBytes []byte) error {
 // isJSON tests a string to determine if it can be parsed as valid JSON
 func isJSON(s []byte) (bool, map[string]interface{}) {
 	var js map[string]interface{}
-	return json.Unmarshal([]byte(s), &js) == nil, js
+	return json.Unmarshal(s, &js) == nil, js
 }
 
 func validateIndexJSON(indexDefinition map[string]interface{}) error {
@@ -173,8 +171,7 @@ func validateIndexJSON(indexDefinition map[string]interface{}) error {
 				return fmt.Errorf("Invalid entry, \"index\" must be a JSON")
 			}
 
-			err := processIndexMap(jsonValue.(map[string]interface{}))
-			if err != nil {
+			if err := processIndexMap(jsonValue.(map[string]interface{})); err != nil {
 				return err
 			}
 
@@ -243,8 +240,7 @@ func processIndexMap(jsonFragment map[string]interface{}) error {
 
 					case reflect.Map:
 						// Handle the case where a sort is included  ex: {"size":"asc"}, {"color":"desc"}
-						err := validateFieldMap(itemValue.(map[string]interface{}))
-						if err != nil {
+						if err := validateFieldMap(itemValue.(map[string]interface{})); err != nil {
 							return err
 						}
 

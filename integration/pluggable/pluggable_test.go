@@ -8,7 +8,6 @@ package pluggable
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,7 +42,7 @@ var _ = Describe("EndToEnd", func() {
 
 	BeforeEach(func() {
 		var err error
-		testDir, err = ioutil.TempDir("", "pluggable-suite")
+		testDir, err = os.MkdirTemp("", "pluggable-suite")
 		Expect(err).NotTo(HaveOccurred())
 
 		// Compile plugins
@@ -61,7 +60,7 @@ var _ = Describe("EndToEnd", func() {
 		Expect(err).NotTo(HaveOccurred())
 		SetValidationPluginActivationFolder(dir)
 
-		basicEtcdRaftConfig := nwo.BasicEtcdRaftNoSysChan()
+		basicEtcdRaftConfig := nwo.BasicEtcdRaft()
 		Expect(basicEtcdRaftConfig.Peers).To(HaveLen(2))
 
 		// docker client
@@ -143,6 +142,7 @@ func compilePlugin(pluginType string) string {
 		"go", "build",
 		"-x", // print build commands while running
 		"-buildmode=plugin",
+		"-tags=generic", // workaround to ensure github.com/kilic/bls12-381 dependency compiles on amd64 in plugin mode
 		"-o", pluginFilePath,
 		fmt.Sprintf("github.com/hyperledger/fabric/integration/pluggable/testdata/plugins/%s", pluginType),
 	)

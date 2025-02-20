@@ -318,12 +318,9 @@ org1ca/
 1. **Organization Enrollment Certificate** - Authenticates the client identity for interactions with peers and orderers.
 2. **TLS Certificate** - Authenticates client communications, and only required if mutual TLS is configured.
 
-Client Certificates expire after one year, using the Hyperledger Fabric CA default settings. Client Certificates can be re-enrolled using either command line Hyperledger Fabric CA utilities or the Fabric CA client SDK.
+Client Certificates expire after one year, using the Hyperledger Fabric CA default settings. Client Certificates can be re-enrolled using the command line Hyperledger Fabric CA utility.
 
 **Impact if expired**: Client Certificates must be re-enrolled before expiration or the client application will not be able to interact with the Fabric nodes.
-
-[Reference - Re-enroll user](https://hyperledger.github.io/fabric-sdk-node/release-2.2/FabricCAClient.html#reenroll__anchor)
-
 
 ### Certificate Decoding
 
@@ -429,7 +426,7 @@ Restart the peer.
 
 For orderer enrollment certificates you can also use the `enroll` or `reenroll` function, using the steps described above for peers.
 
-Orderer TLS certificates must be reenrolled with the option to reuse the private key. This is due to the orderer TLS certificates being configured in the system and application channels (orderer to orderer communication is verified using the public key in the configured TLS certificate). As of v1.4.9 and v2.2.1, orderer nodes verify a matching key rather than the entire configured TLS certificate, enabling orderer TLS certificate renewal without requiring a channel configuration update to update the certificate.
+Orderer TLS certificates must be reenrolled with the option to reuse the private key. This is due to the orderer TLS certificates being configured in the application channel (orderer to orderer communication is verified using the public key in the configured TLS certificate). As of v1.4.9 and v2.2.1, orderer nodes verify a matching key rather than the entire configured TLS certificate, enabling orderer TLS certificate renewal without requiring a channel configuration update to update the certificate.
 
 Use `reenroll` and reuse the TLS certificate's private key by passing the `csr.keyrequest.reusekey` option and indicating the `mspdir` location of the existing private key (the private key is found in the `<mspdir>/keystore` directory):
 
@@ -447,8 +444,25 @@ Restart the orderer node.
 
 ### Renew Orderer TLS Certificates Without Reusing the Private Key
 
-While it is recommended to reuse the private key for orderer TLS certificate renewal, this may not be possible in all situations. Additional steps and planning are required since each ordering service channel (including the system channel, if used) must be updated for the new orderer TLS certificate.
+While it is recommended to reuse the private key for orderer TLS certificate renewal, this may not be possible in all situations. Additional steps and planning are required since each ordering service channel must be updated for the new orderer TLS certificate.
 
 Suppose you do not reuse the orderer TLS private key during re-enrollment, and the original orderer TLS certificates have not yet expired. In that case, you must update the orderer TLS certificates one at a time on each node and in each channel configuration and then verify the orderer function before moving on to other orderer node TLS certificate updates.
 
 If you do not reuse the orderer TLS private key and the original orderer TLS certificates have expired, the ordering service will not be able to form consensus and will therefore not be able to process transactions including channel configuration updates. The ordering service recovery process is complicated as you must temporarily utilize the orderer `TLSHandshakeTimeShift` property on all nodes and restart them in order to form consensus with the expired certificates so that channel configuration updates can be processed to update the TLS certificates. Update a majority of the orderer TLS certificates (e.g. 3 out of 5) one at a time on each node and in the channel configuration. Once a majority have been updated the new certificate expiration dates will no longer fall within the `TLSHandshakeTimeShift` and therefore the updated ordering nodes will fall out of the consenter set causing loss of consensus again. Next, remove the `TLSHandshakeTimeShift` setting from all nodes. Upon restart the majority of updated orderer nodes will now form consensus and you can then update the remaining orderer TLS certificates (e.g. 2 out of 5) one at a time on each node and in the channel configuration.
+
+### Renew CA Certificate
+
+If an organization's CA certificate is going to expire, or if the organization simply wants to utilize a different CA certificate,
+the organization can make the update in a phased approach.
+
+First, the organization can submit a channel configuration update that includes both the old and the new CA certificate for their organization,
+by including them both in their msp's `cacerts` directory (and corresponding `config.yaml` updates) when creating the channel configuration transaction
+(or in the `tlscacerts` directory for TLS CA certs).
+The channel configuration transaction makes the new CA certificate known to all nodes on the channel.
+
+Next, the organization can issue new orderer and peer certificates or TLS certificates (Fabric CA register and enroll commands) based on the new CA,
+and distribute the new credentials to each of the orderers and peers.
+Note that new orderer TLS certificates will also require channel configuration updates one at a time for each orderer node as described above.
+The organization can retire any remaining nodes that have certificates issued from the old CA.
+
+Finally, the organization can submit another channel configuration update that removes the old CA certificate from their msp's `cacerts` directory (or `tlscacerts` directory).

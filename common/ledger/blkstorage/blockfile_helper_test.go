@@ -8,14 +8,13 @@ package blkstorage
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protowire"
 )
 
 func TestConstructBlockfilesInfo(t *testing.T) {
@@ -63,9 +62,8 @@ func TestConstructBlockfilesInfo(t *testing.T) {
 
 	// Write a partial block (to simulate a crash) and verify that blockfilesInfo derived from filesystem should be same as from the blockfile manager
 	lastTestBlk := bg.NextTestBlocks(1)[0]
-	blockBytes, _, err := serializeBlock(lastTestBlk)
-	require.NoError(t, err)
-	partialByte := append(proto.EncodeVarint(uint64(len(blockBytes))), blockBytes[len(blockBytes)/2:]...)
+	blockBytes, _ := serializeBlock(lastTestBlk)
+	partialByte := append(protowire.AppendVarint(nil, uint64(len(blockBytes))), blockBytes[len(blockBytes)/2:]...)
 	blockfileMgr.currentFileWriter.append(partialByte, true)
 	checkBlockfilesInfoFromFS(t, blkStoreDir, blockfileMgr.blockfilesInfo)
 
@@ -102,7 +100,7 @@ func TestBinarySearchBlockFileNum(t *testing.T) {
 	blkfileMgrWrapper.addBlocks(blocks)
 
 	ledgerDir := (&Conf{blockStorageDir: blockStoreRootDir}).getLedgerBlockDir("testLedger")
-	files, err := ioutil.ReadDir(ledgerDir)
+	files, err := os.ReadDir(ledgerDir)
 	require.NoError(t, err)
 	require.Len(t, files, 11)
 

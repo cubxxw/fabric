@@ -8,13 +8,12 @@ package viperutil
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 	"github.com/hyperledger/fabric/orderer/mocks/util"
 	"github.com/stretchr/testify/require"
 )
@@ -32,8 +31,7 @@ func TestEnvSlice(t *testing.T) {
 	}
 
 	envVar := testEnvPrefix + "_INNER_SLICE"
-	os.Setenv(envVar, "[a, b, c]")
-	defer os.Unsetenv(envVar)
+	t.Setenv(envVar, "[a, b, c]")
 
 	data := "---\nInner:\n    Slice: [d,e,f]"
 
@@ -134,13 +132,13 @@ func TestStringNotFromFile(t *testing.T) {
 }
 
 func TestStringFromFile(t *testing.T) {
-	file, err := ioutil.TempFile(os.TempDir(), "test")
+	file, err := os.CreateTemp(os.TempDir(), "test")
 	require.NoError(t, err, "failed to create temp file")
 	defer os.Remove(file.Name())
 
 	expectedValue := "this is the text in the file"
 
-	err = ioutil.WriteFile(file.Name(), []byte(expectedValue), 0o644)
+	err = os.WriteFile(file.Name(), []byte(expectedValue), 0o644)
 	require.NoError(t, err, "uname to write temp file")
 
 	yaml := fmt.Sprintf("---\nInner:\n  Single:\n    File: %s", file.Name())
@@ -156,7 +154,7 @@ func TestStringFromFile(t *testing.T) {
 }
 
 func TestPEMBlocksFromFile(t *testing.T) {
-	file, err := ioutil.TempFile(os.TempDir(), "test")
+	file, err := os.CreateTemp(os.TempDir(), "test")
 	require.NoError(t, err, "failed to create temp file")
 	defer os.Remove(file.Name())
 
@@ -166,7 +164,7 @@ func TestPEMBlocksFromFile(t *testing.T) {
 		pems = append(pems, publicKeyCert...)
 	}
 
-	err = ioutil.WriteFile(file.Name(), pems, 0o644)
+	err = os.WriteFile(file.Name(), pems, 0o644)
 	require.NoError(t, err, "failed to write temp file")
 
 	yaml := fmt.Sprintf("---\nInner:\n  Multiple:\n    File: %s", file.Name())
@@ -182,7 +180,7 @@ func TestPEMBlocksFromFile(t *testing.T) {
 }
 
 func TestPEMBlocksFromFileEnv(t *testing.T) {
-	file, err := ioutil.TempFile(os.TempDir(), "test")
+	file, err := os.CreateTemp(os.TempDir(), "test")
 	require.NoError(t, err, "failed to create temp file")
 	defer os.Remove(file.Name())
 
@@ -192,12 +190,11 @@ func TestPEMBlocksFromFileEnv(t *testing.T) {
 		pems = append(pems, publicKeyCert...)
 	}
 
-	err = ioutil.WriteFile(file.Name(), pems, 0o644)
+	err = os.WriteFile(file.Name(), pems, 0o644)
 	require.NoError(t, err, "failed to write temp file")
 
 	envVar := testEnvPrefix + "_INNER_MULTIPLE_FILE"
-	defer os.Unsetenv(envVar)
-	os.Setenv(envVar, file.Name())
+	t.Setenv(envVar, file.Name())
 
 	testCases := []struct {
 		name string
@@ -238,16 +235,15 @@ func TestStringFromFileNotSpecified(t *testing.T) {
 func TestStringFromFileEnv(t *testing.T) {
 	expectedValue := "this is the text in the file"
 
-	file, err := ioutil.TempFile(os.TempDir(), "test")
+	file, err := os.CreateTemp(os.TempDir(), "test")
 	require.NoError(t, err, "failed to create temp file")
 	defer os.Remove(file.Name())
 
-	err = ioutil.WriteFile(file.Name(), []byte(expectedValue), 0o644)
+	err = os.WriteFile(file.Name(), []byte(expectedValue), 0o644)
 	require.NoError(t, err, "failed to write temp file")
 
 	envVar := testEnvPrefix + "_INNER_SINGLE_FILE"
-	defer os.Unsetenv(envVar)
-	os.Setenv(envVar, file.Name())
+	t.Setenv(envVar, file.Name())
 
 	testCases := []struct {
 		name string
@@ -294,8 +290,7 @@ func TestBCCSPDecodeHookOverride(t *testing.T) {
 	yaml := "---\nBCCSP:\n  Default: default-provider\n  SW:\n    Security: 999\n"
 
 	overrideVar := testEnvPrefix + "_BCCSP_SW_SECURITY"
-	os.Setenv(overrideVar, "1111")
-	defer os.Unsetenv(overrideVar)
+	t.Setenv(overrideVar, "1111")
 
 	config := New()
 	config.SetConfigName(testConfigName)

@@ -12,16 +12,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric-lib-go/bccsp"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric/cmd/osnadmin/mocks"
 	"github.com/hyperledger/fabric/common/crypto/tlsgen"
 	"github.com/hyperledger/fabric/orderer/common/channelparticipation"
@@ -30,6 +28,7 @@ import (
 	"github.com/hyperledger/fabric/protoutil"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"google.golang.org/protobuf/proto"
 )
 
 var _ = Describe("osnadmin", func() {
@@ -47,7 +46,7 @@ var _ = Describe("osnadmin", func() {
 
 	BeforeEach(func() {
 		var err error
-		tempDir, err = ioutil.TempDir("", "osnadmin")
+		tempDir, err = os.MkdirTemp("", "osnadmin")
 		Expect(err).NotTo(HaveOccurred())
 
 		generateCertificates(tempDir)
@@ -75,7 +74,7 @@ var _ = Describe("osnadmin", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		caCertPool := x509.NewCertPool()
-		clientCAPem, err := ioutil.ReadFile(filepath.Join(tempDir, "client-ca.pem"))
+		clientCAPem, err := os.ReadFile(filepath.Join(tempDir, "client-ca.pem"))
 		Expect(err).NotTo(HaveOccurred())
 		caCertPool.AppendCertsFromPEM(clientCAPem)
 
@@ -708,7 +707,7 @@ var _ = Describe("osnadmin", func() {
 					"--client-key", clientKey,
 				}
 				output, exit, err := executeForArgs(args)
-				checkCLIError(output, exit, err, fmt.Sprintf("Get \"%s/participation/v1/channels\": x509: certificate signed by unknown authority", testServer.URL))
+				checkCLIError(output, exit, err, fmt.Sprintf("Get \"%s/participation/v1/channels\": tls: failed to verify certificate: x509: certificate signed by unknown authority", testServer.URL))
 			})
 		})
 	})
@@ -745,90 +744,93 @@ func checkCLIError(output string, exit int, err error, expectedError string) {
 func generateCertificates(tempDir string) {
 	serverCA, err := tlsgen.NewCA()
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "server-ca.pem"), serverCA.CertBytes(), 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "server-ca.pem"), serverCA.CertBytes(), 0o640)
 	Expect(err).NotTo(HaveOccurred())
 	serverKeyPair, err := serverCA.NewServerCertKeyPair("127.0.0.1")
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "server-cert.pem"), serverKeyPair.Cert, 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "server-cert.pem"), serverKeyPair.Cert, 0o640)
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "server-key.pem"), serverKeyPair.Key, 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "server-key.pem"), serverKeyPair.Key, 0o640)
 	Expect(err).NotTo(HaveOccurred())
 
 	serverIntermediateCA, err := serverCA.NewIntermediateCA()
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "server-intermediate-ca.pem"), serverIntermediateCA.CertBytes(), 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "server-intermediate-ca.pem"), serverIntermediateCA.CertBytes(), 0o640)
 	Expect(err).NotTo(HaveOccurred())
 	serverIntermediateKeyPair, err := serverIntermediateCA.NewServerCertKeyPair("127.0.0.1")
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "server-intermediate-cert.pem"), serverIntermediateKeyPair.Cert, 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "server-intermediate-cert.pem"), serverIntermediateKeyPair.Cert, 0o640)
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "server-intermediate-key.pem"), serverIntermediateKeyPair.Key, 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "server-intermediate-key.pem"), serverIntermediateKeyPair.Key, 0o640)
 	Expect(err).NotTo(HaveOccurred())
 
 	serverAndIntermediateCABytes := append(serverCA.CertBytes(), serverIntermediateCA.CertBytes()...)
-	err = ioutil.WriteFile(filepath.Join(tempDir, "server-ca+intermediate-ca.pem"), serverAndIntermediateCABytes, 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "server-ca+intermediate-ca.pem"), serverAndIntermediateCABytes, 0o640)
 	Expect(err).NotTo(HaveOccurred())
 
 	clientCA, err := tlsgen.NewCA()
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "client-ca.pem"), clientCA.CertBytes(), 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "client-ca.pem"), clientCA.CertBytes(), 0o640)
 	Expect(err).NotTo(HaveOccurred())
 	clientKeyPair, err := clientCA.NewClientCertKeyPair()
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "client-cert.pem"), clientKeyPair.Cert, 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "client-cert.pem"), clientKeyPair.Cert, 0o640)
 	Expect(err).NotTo(HaveOccurred())
-	err = ioutil.WriteFile(filepath.Join(tempDir, "client-key.pem"), clientKeyPair.Key, 0o640)
+	err = os.WriteFile(filepath.Join(tempDir, "client-key.pem"), clientKeyPair.Key, 0o640)
 	Expect(err).NotTo(HaveOccurred())
 }
 
 func blockWithGroups(groups map[string]*cb.ConfigGroup, channelID string) *cb.Block {
-	return &cb.Block{
-		Data: &cb.BlockData{
-			Data: [][]byte{
-				protoutil.MarshalOrPanic(&cb.Envelope{
-					Payload: protoutil.MarshalOrPanic(&cb.Payload{
-						Data: protoutil.MarshalOrPanic(&cb.ConfigEnvelope{
-							Config: &cb.Config{
-								ChannelGroup: &cb.ConfigGroup{
-									Groups: groups,
-									Values: map[string]*cb.ConfigValue{
-										"HashingAlgorithm": {
-											Value: protoutil.MarshalOrPanic(&cb.HashingAlgorithm{
-												Name: bccsp.SHA256,
-											}),
-										},
-										"BlockDataHashingStructure": {
-											Value: protoutil.MarshalOrPanic(&cb.BlockDataHashingStructure{
-												Width: math.MaxUint32,
-											}),
-										},
-										"OrdererAddresses": {
-											Value: protoutil.MarshalOrPanic(&cb.OrdererAddresses{
-												Addresses: []string{"localhost"},
-											}),
-										},
+	block := protoutil.NewBlock(0, []byte{})
+	block.Data = &cb.BlockData{
+		Data: [][]byte{
+			protoutil.MarshalOrPanic(&cb.Envelope{
+				Payload: protoutil.MarshalOrPanic(&cb.Payload{
+					Data: protoutil.MarshalOrPanic(&cb.ConfigEnvelope{
+						Config: &cb.Config{
+							ChannelGroup: &cb.ConfigGroup{
+								Groups: groups,
+								Values: map[string]*cb.ConfigValue{
+									"HashingAlgorithm": {
+										Value: protoutil.MarshalOrPanic(&cb.HashingAlgorithm{
+											Name: bccsp.SHA256,
+										}),
+									},
+									"BlockDataHashingStructure": {
+										Value: protoutil.MarshalOrPanic(&cb.BlockDataHashingStructure{
+											Width: math.MaxUint32,
+										}),
+									},
+									"OrdererAddresses": {
+										Value: protoutil.MarshalOrPanic(&cb.OrdererAddresses{
+											Addresses: []string{"localhost"},
+										}),
 									},
 								},
 							},
-						}),
-						Header: &cb.Header{
-							ChannelHeader: protoutil.MarshalOrPanic(&cb.ChannelHeader{
-								Type:      int32(cb.HeaderType_CONFIG),
-								ChannelId: channelID,
-							}),
 						},
 					}),
+					Header: &cb.Header{
+						ChannelHeader: protoutil.MarshalOrPanic(&cb.ChannelHeader{
+							Type:      int32(cb.HeaderType_CONFIG),
+							ChannelId: channelID,
+						}),
+					},
 				}),
-			},
+			}),
 		},
 	}
+	block.Header.DataHash, _ = protoutil.BlockDataHash(block.Data)
+	protoutil.InitBlockMetadata(block)
+
+	return block
 }
 
 func createBlockFile(tempDir string, configBlock *cb.Block) string {
 	blockBytes, err := proto.Marshal(configBlock)
 	Expect(err).NotTo(HaveOccurred())
 	blockPath := filepath.Join(tempDir, "block.pb")
-	err = ioutil.WriteFile(blockPath, blockBytes, 0o644)
+	err = os.WriteFile(blockPath, blockBytes, 0o644)
 	Expect(err).NotTo(HaveOccurred())
 	return blockPath
 }

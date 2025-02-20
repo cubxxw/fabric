@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp/sw"
+	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/configtx/test"
 	"github.com/hyperledger/fabric/common/crypto"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hyperledger/fabric/common/ledger/testutil/fakes"
 	"github.com/hyperledger/fabric/msp"
@@ -137,7 +137,7 @@ func ConstructTransaction(
 	)
 }
 
-// ConstructTransaction constructs a transaction for testing with header type
+// ConstructTransactionWithHeaderType constructs a transaction for testing with header type
 func ConstructTransactionWithHeaderType(
 	t *testing.T,
 	simulationResults []byte,
@@ -243,6 +243,7 @@ func ConstructBlockWithTxidHeaderType(
 		if err != nil {
 			t.Fatalf("ConstructTestTransaction failed, err %s", err)
 		}
+		env.Signature = []byte{1, 2, 3}
 		envs = append(envs, env)
 	}
 	return NewBlock(envs, blockNum, previousHash)
@@ -261,6 +262,9 @@ func ConstructBlock(
 		env, _, err := ConstructTransaction(t, simulationResults[i], "", sign)
 		if err != nil {
 			t.Fatalf("ConstructTestTransaction failed, err %s", err)
+		}
+		if !sign {
+			env.Signature = []byte{1, 2, 3}
 		}
 		envs = append(envs, env)
 	}
@@ -303,7 +307,7 @@ func NewBlock(env []*common.Envelope, blockNum uint64, previousHash []byte) *com
 		txEnvBytes, _ := proto.Marshal(env[i])
 		block.Data.Data = append(block.Data.Data, txEnvBytes)
 	}
-	block.Header.DataHash = protoutil.BlockDataHash(block.Data)
+	block.Header.DataHash = protoutil.ComputeBlockDataHash(block.Data)
 	protoutil.InitBlockMetadata(block)
 
 	block.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER] = txflags.NewWithValues(len(env), pb.TxValidationCode_VALID)

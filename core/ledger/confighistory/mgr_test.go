@@ -10,19 +10,18 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"hash"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/ledger/snapshot"
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/hyperledger/fabric/core/ledger/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var testNewHashFunc = func() (hash.Hash, error) {
@@ -109,7 +108,7 @@ func TestMgrQueries(t *testing.T) {
 				retrievedConfig, err := retriever.MostRecentCollectionConfigBelow(testHeight, chaincodeName)
 				require.NoError(t, err)
 				expectedConfig := sampleCollectionConfigPackage(ledgerid, expectedHeight)
-				require.Equal(t, expectedConfig, retrievedConfig.CollectionConfig)
+				require.True(t, proto.Equal(expectedConfig, retrievedConfig.CollectionConfig))
 				require.Equal(t, expectedHeight, retrievedConfig.CommittingBlockNum)
 			}
 
@@ -156,7 +155,7 @@ func TestDrop(t *testing.T) {
 		retrievedConfig, err = retriever2.MostRecentCollectionConfigBelow(testHeight, chaincodeName)
 		require.NoError(t, err)
 		expectedConfig := sampleCollectionConfigPackage("ledger2", expectedHeight)
-		require.Equal(t, expectedConfig, retrievedConfig.CollectionConfig)
+		require.True(t, proto.Equal(expectedConfig, retrievedConfig.CollectionConfig))
 		require.Equal(t, expectedHeight, retrievedConfig.CommittingBlockNum)
 	}
 
@@ -349,7 +348,7 @@ func TestExportAndImportConfigHistory(t *testing.T) {
 		fileHashes, err := retriever.ExportConfigHistory(env.testSnapshotDir, testNewHashFunc)
 		require.NoError(t, err)
 		require.Empty(t, fileHashes)
-		files, err := ioutil.ReadDir(env.testSnapshotDir)
+		files, err := os.ReadDir(env.testSnapshotDir)
 		require.NoError(t, err)
 		require.Len(t, files, 0)
 	})
@@ -458,13 +457,13 @@ func verifyExportedConfigHistory(t *testing.T, dir string, fileHashes map[string
 	require.Contains(t, fileHashes, snapshotMetadataFileName)
 
 	dataFile := filepath.Join(dir, snapshotDataFileName)
-	dataFileContent, err := ioutil.ReadFile(dataFile)
+	dataFileContent, err := os.ReadFile(dataFile)
 	require.NoError(t, err)
 	dataFileHash := sha256.Sum256(dataFileContent)
 	require.Equal(t, dataFileHash[:], fileHashes[snapshotDataFileName])
 
 	metadataFile := filepath.Join(dir, snapshotMetadataFileName)
-	metadataFileContent, err := ioutil.ReadFile(metadataFile)
+	metadataFileContent, err := os.ReadFile(metadataFile)
 	require.NoError(t, err)
 	metadataFileHash := sha256.Sum256(metadataFileContent)
 	require.Equal(t, metadataFileHash[:], fileHashes[snapshotMetadataFileName])

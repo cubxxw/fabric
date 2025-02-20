@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
-	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
-	protosmsp "github.com/hyperledger/fabric-protos-go/msp"
-	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp/sw"
+	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/rwset"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/rwset/kvrwset"
+	protosmsp "github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	commonerrors "github.com/hyperledger/fabric/common/errors"
 	"github.com/hyperledger/fabric/common/policydsl"
 	"github.com/hyperledger/fabric/common/semaphore"
@@ -976,7 +976,7 @@ func TestDynamicCapabilitiesAndMSP(t *testing.T) {
 	require.Equal(t, 2*mspManagerInvokeCount, v.ChannelResources.(*mocktxvalidator.Support).MSPManagerInvokeCount())
 }
 
-// TestLedgerIsNoAvailable simulates and provides a test for following scenario,
+// TestLedgerIsNotAvailable simulates and provides a test for following scenario,
 // which is based on FAB-535. Test checks the validation path which expects that
 // DB won't available while trying to lookup for VSCC from LCCC and therefore
 // transaction validation will have to fail. In such case the outcome should be

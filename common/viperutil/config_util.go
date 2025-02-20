@@ -7,10 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package viperutil
 
 import (
+	"bytes"
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -19,11 +19,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hyperledger/fabric/bccsp/factory"
-	"github.com/hyperledger/fabric/common/flogging"
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var logger = flogging.MustGetLogger("viperutil")
@@ -286,7 +286,7 @@ func stringFromFileDecodeHook(f reflect.Kind, t reflect.Kind, data interface{}) 
 		}
 		switch {
 		case ok && fileName != nil:
-			bytes, err := ioutil.ReadFile(fileName.(string))
+			bytes, err := os.ReadFile(fileName.(string))
 			if err != nil {
 				return data, err
 			}
@@ -333,7 +333,7 @@ func pemBlocksFromFileDecodeHook(f reflect.Kind, t reflect.Kind, data interface{
 		switch {
 		case ok && fileName != "":
 			var result []string
-			bytes, err := ioutil.ReadFile(fileName)
+			bytes, err := os.ReadFile(fileName)
 			if err != nil {
 				return data, err
 			}
@@ -423,6 +423,10 @@ func YamlStringToStructHook(m interface{}) func(rf reflect.Kind, rt reflect.Kind
 			return m, nil
 		}
 
-		return m, yaml.UnmarshalStrict([]byte(raw), &m)
+		dec := yaml.NewDecoder(bytes.NewBuffer([]byte(raw)))
+		dec.KnownFields(true)
+		err := dec.Decode(&m)
+
+		return m, err
 	}
 }

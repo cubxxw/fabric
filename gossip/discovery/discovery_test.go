@@ -11,7 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"sort"
 	"strconv"
@@ -21,9 +21,8 @@ import (
 	"testing"
 	"time"
 
-	protoG "github.com/golang/protobuf/proto"
-	proto "github.com/hyperledger/fabric-protos-go/gossip"
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	proto "github.com/hyperledger/fabric-protos-go-apiv2/gossip"
 	"github.com/hyperledger/fabric/gossip/common"
 	"github.com/hyperledger/fabric/gossip/gossip/msgstore"
 	"github.com/hyperledger/fabric/gossip/protoext"
@@ -35,12 +34,14 @@ import (
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
+	protoG "google.golang.org/protobuf/proto"
 )
 
 var timeout = time.Second * time.Duration(15)
 
 var (
-	aliveTimeInterval = time.Duration(time.Millisecond * 300)
+	aliveTimeInterval = time.Millisecond * 300
 	defaultTestConfig = DiscoveryConfig{
 		AliveTimeInterval:            aliveTimeInterval,
 		AliveExpirationTimeout:       10 * aliveTimeInterval,
@@ -222,7 +223,7 @@ func (comm *dummyCommModule) Ping(peer *NetworkMember) bool {
 	_, alreadyExists := comm.streams[peer.Endpoint]
 	conn := comm.conns[peer.Endpoint]
 	if !alreadyExists || conn.GetState() == connectivity.Shutdown {
-		newConn, err := grpc.Dial(peer.Endpoint, grpc.WithInsecure())
+		newConn, err := grpc.Dial(peer.Endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return false
 		}
@@ -575,7 +576,7 @@ func TestConnect(t *testing.T) {
 	}
 	waitUntilOrFail(t, fullMembership)
 
-	discInst := instances[rand.Intn(len(instances))].Discovery.(*gossipDiscoveryImpl)
+	discInst := instances[rand.IntN(len(instances))].Discovery.(*gossipDiscoveryImpl)
 	mr, _ := discInst.createMembershipRequest(true)
 	am, _ := protoext.EnvelopeToGossipMessage(mr.GetMemReq().SelfInformation)
 	require.NotNil(t, am.SecretEnvelope)
@@ -1396,7 +1397,7 @@ func TestMsgStoreExpirationWithMembershipMessages(t *testing.T) {
 		_, exist := instances[index].discoveryImpl().aliveLastTS[string(instances[i].discoveryImpl().self.PKIid)]
 		require.True(t, exist, fmt.Sprint(step, " Data from alive msg ", i, " doesn't exist in aliveLastTS of discovery inst ", index))
 
-		_, exist = instances[index].discoveryImpl().id2Member[string(string(instances[i].discoveryImpl().self.PKIid))]
+		_, exist = instances[index].discoveryImpl().id2Member[string(instances[i].discoveryImpl().self.PKIid)]
 		require.True(t, exist, fmt.Sprint(step, " id2Member mapping doesn't exist for alive msg ", i, " of discovery inst ", index))
 
 		require.NotNil(t, instances[index].discoveryImpl().aliveMembership.MsgByID(instances[i].discoveryImpl().self.PKIid), fmt.Sprint(step, " Alive msg", i, " not exist in aliveMembership of discovery inst ", index))

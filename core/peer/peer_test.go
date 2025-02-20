@@ -8,21 +8,20 @@ package peer
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
+	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/channelconfig"
-
-	"github.com/hyperledger/fabric-protos-go/common"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp/sw"
 	configtxtest "github.com/hyperledger/fabric/common/configtx/test"
 	"github.com/hyperledger/fabric/common/crypto/tlsgen"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
 	"github.com/hyperledger/fabric/core/committer/txvalidator/plugin"
 	"github.com/hyperledger/fabric/core/deliverservice"
 	validation "github.com/hyperledger/fabric/core/handlers/validation/api"
@@ -42,6 +41,7 @@ import (
 	msptesttools "github.com/hyperledger/fabric/msp/mgmt/testtools"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestMain(m *testing.M) {
@@ -69,7 +69,9 @@ func NewTestPeer(t *testing.T) (*Peer, func()) {
 		nil,
 	)
 	secAdv := peergossip.NewSecurityAdvisor(deserManager)
-	defaultSecureDialOpts := func() []grpc.DialOption { return []grpc.DialOption{grpc.WithInsecure()} }
+	defaultSecureDialOpts := func() []grpc.DialOption {
+		return []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	}
 	gossipConfig, err := gossip.GlobalConfig("localhost:0", nil)
 	require.NoError(t, err)
 
@@ -241,14 +243,14 @@ func TestCreateChannelBySnapshot(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedStatus := &pb.JoinBySnapshotStatus{InProgress: true, BootstrappingSnapshotDir: snapshotDir}
-	require.Equal(t, expectedStatus, peerInstance.JoinBySnaphotStatus())
+	require.Equal(t, expectedStatus, peerInstance.JoinBySnapshotStatus())
 
 	// write a msg to waitCh to unblock channel init func
 	waitCh <- struct{}{}
 
 	// wait until ledger creation is done
 	ledgerCreationDone := func() bool {
-		return !peerInstance.JoinBySnaphotStatus().InProgress
+		return !peerInstance.JoinBySnapshotStatus().InProgress
 	}
 	require.Eventually(t, ledgerCreationDone, time.Minute, time.Second)
 
@@ -264,7 +266,7 @@ func TestCreateChannelBySnapshot(t *testing.T) {
 	require.Equal(t, uint64(1), bcInfo.GetHeight())
 
 	expectedStatus = &pb.JoinBySnapshotStatus{InProgress: false, BootstrappingSnapshotDir: ""}
-	require.Equal(t, expectedStatus, peerInstance.JoinBySnaphotStatus())
+	require.Equal(t, expectedStatus, peerInstance.JoinBySnapshotStatus())
 
 	// Bad ledger
 	ledger = peerInstance.GetLedger("BogusChain")

@@ -9,7 +9,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -35,13 +35,13 @@ var _ = Describe("Health", func() {
 
 	BeforeEach(func() {
 		var err error
-		testDir, err = ioutil.TempDir("", "e2e")
+		testDir, err = os.MkdirTemp("", "e2e")
 		Expect(err).NotTo(HaveOccurred())
 
 		client, err = docker.NewClientFromEnv()
 		Expect(err).NotTo(HaveOccurred())
 
-		config := nwo.BasicEtcdRaftNoSysChan()
+		config := nwo.BasicEtcdRaft()
 		network = nwo.New(config, testDir, client, StartPort(), components)
 		network.GenerateConfigTree()
 		network.Bootstrap()
@@ -133,7 +133,7 @@ func doHealthCheck(client *http.Client, url string) (int, *healthz.HealthStatus)
 	resp, err := client.Get(url)
 	Expect(err).NotTo(HaveOccurred())
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	Expect(err).NotTo(HaveOccurred())
 	resp.Body.Close()
 

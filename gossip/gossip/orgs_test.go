@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	proto "github.com/hyperledger/fabric-protos-go/gossip"
-	"github.com/hyperledger/fabric/bccsp/factory"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
+	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	proto "github.com/hyperledger/fabric-protos-go-apiv2/gossip"
 	"github.com/hyperledger/fabric/gossip/api"
 	gcomm "github.com/hyperledger/fabric/gossip/comm"
 	"github.com/hyperledger/fabric/gossip/common"
@@ -78,6 +78,12 @@ func (*configurableCryptoService) GetPKIidOfCert(peerIdentity api.PeerIdentityTy
 // VerifyBlock returns nil if the block is properly signed,
 // else returns error
 func (*configurableCryptoService) VerifyBlock(channelID common.ChannelID, seqNum uint64, signedBlock *cb.Block) error {
+	return nil
+}
+
+// VerifyBlockAttestation returns nil if the block attestation is properly signed,
+// else returns error
+func (*configurableCryptoService) VerifyBlockAttestation(channelID string, signedBlock *cb.Block) error {
 	return nil
 }
 
@@ -358,7 +364,7 @@ func TestConfidentiality(t *testing.T) {
 			externalEndpoint := ""
 			if j < externalEndpointsInOrg { // The first peers of each org would have an external endpoint
 				externalEndpoint = endpoint
-				peersWithExternalEndpoints[string(endpoint)] = struct{}{}
+				peersWithExternalEndpoints[endpoint] = struct{}{}
 			}
 			peer := newGossipInstanceWithGRPCWithExternalEndpoint(id, ports[id], grpcs[id], certs[id], secDialOpts[id],
 				cs, externalEndpoint)
@@ -503,7 +509,7 @@ func expectedMembershipSize(peersInOrg, externalEndpointsInOrg int, org string, 
 
 func extractOrgsFromMsg(msg *proto.GossipMessage, sec api.SecurityAdvisor) []string {
 	if protoext.IsAliveMsg(msg) {
-		return []string{string(sec.OrgByPeerIdentity(api.PeerIdentityType(msg.GetAliveMsg().Membership.PkiId)))}
+		return []string{string(sec.OrgByPeerIdentity(msg.GetAliveMsg().Membership.PkiId))}
 	}
 
 	orgs := map[string]struct{}{}
@@ -538,7 +544,7 @@ func extractOrgsFromMsg(msg *proto.GossipMessage, sec api.SecurityAdvisor) []str
 		dead := msg.GetMemRes().Dead
 		for _, envp := range append(alive, dead...) {
 			msg, _ := protoext.EnvelopeToGossipMessage(envp)
-			orgs[string(sec.OrgByPeerIdentity(api.PeerIdentityType(msg.GetAliveMsg().Membership.PkiId)))] = struct{}{}
+			orgs[string(sec.OrgByPeerIdentity(msg.GetAliveMsg().Membership.PkiId))] = struct{}{}
 		}
 	}
 

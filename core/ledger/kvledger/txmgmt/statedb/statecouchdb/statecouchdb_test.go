@@ -15,9 +15,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
 	"github.com/hyperledger/fabric/common/ledger/dataformat"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/hyperledger/fabric/core/ledger/internal/version"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb"
@@ -89,7 +89,7 @@ func (env *testVDBEnv) cleanup() {
 	env.couchDBEnv.cleanup(env.config)
 }
 
-// testVDBEnv provides a couch db for testing
+// testCouchDBEnv provides a couch db for testing
 type testCouchDBEnv struct {
 	t              *testing.T
 	couchAddress   string

@@ -17,7 +17,6 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -27,7 +26,7 @@ import (
 	"github.com/hyperledger/fabric/integration/channelparticipation"
 	ginkgomon "github.com/tedsuo/ifrit/ginkgomon_v2"
 
-	bpkcs11 "github.com/hyperledger/fabric/bccsp/pkcs11"
+	bpkcs11 "github.com/hyperledger/fabric-lib-go/bccsp/pkcs11"
 	"github.com/hyperledger/fabric/integration/nwo"
 	"github.com/hyperledger/fabric/integration/nwo/fabricconfig"
 	"github.com/miekg/pkcs11"
@@ -47,10 +46,10 @@ var _ = Describe("PKCS11 enabled network", func() {
 
 	BeforeEach(func() {
 		var err error
-		tempDir, err = ioutil.TempDir("", "p11")
+		tempDir, err = os.MkdirTemp("", "p11")
 		Expect(err).NotTo(HaveOccurred())
 
-		network = nwo.New(nwo.BasicEtcdRaftNoSysChan(), tempDir, nil, StartPort(), components)
+		network = nwo.New(nwo.BasicEtcdRaft(), tempDir, nil, StartPort(), components)
 		network.GenerateConfigTree()
 		network.Bootstrap()
 
@@ -192,25 +191,31 @@ func configurePeerPKCS11(ctx *pkcs11.Ctx, sess pkcs11.SessionHandle, network *nw
 
 		// Retrieves org CA cert
 		orgCAPath := network.PeerOrgCADir(network.Organization(orgName))
-		caBytes, err := ioutil.ReadFile(filepath.Join(orgCAPath, fmt.Sprintf("ca.%s-cert.pem", domain)))
+		caBytes, err := os.ReadFile(filepath.Join(orgCAPath, fmt.Sprintf("ca.%s-cert.pem", domain)))
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Updating the peer signcerts")
 		newOrdererPemCert := buildCert(caBytes, orgCAPath, peerCSR, peerSerial, peerPubKey)
 		updateMSPFolder(network.PeerLocalMSPDir(peer), fmt.Sprintf("peer.%s-cert.pem", domain), newOrdererPemCert)
-		serialNumbers[hex.EncodeToString(skiForKey(peerPubKey))] = peerSerial
+		peerSki, err := skiForKey(peerPubKey)
+		Expect(err).NotTo(HaveOccurred())
+		serialNumbers[hex.EncodeToString(peerSki)] = peerSerial
 
 		By("Updating the peer admin user signcerts")
 		newAdminPemCert := buildCert(caBytes, orgCAPath, adminCSR, adminSerial, adminPubKey)
 		orgAdminMSPPath := network.PeerUserMSPDir(peer, "Admin")
 		updateMSPFolder(orgAdminMSPPath, fmt.Sprintf("Admin@%s-cert.pem", domain), newAdminPemCert)
-		serialNumbers[hex.EncodeToString(skiForKey(adminPubKey))] = adminSerial
+		adminSki, err := skiForKey(adminPubKey)
+		Expect(err).NotTo(HaveOccurred())
+		serialNumbers[hex.EncodeToString(adminSki)] = adminSerial
 
 		By("Updating the peer user1 signcerts")
 		newUserPemCert := buildCert(caBytes, orgCAPath, userCSR, userSerial, userPubKey)
 		orgUserMSPPath := network.PeerUserMSPDir(peer, "User1")
 		updateMSPFolder(orgUserMSPPath, fmt.Sprintf("User1@%s-cert.pem", domain), newUserPemCert)
-		serialNumbers[hex.EncodeToString(skiForKey(userPubKey))] = userSerial
+		userSki, err := skiForKey(userPubKey)
+		Expect(err).NotTo(HaveOccurred())
+		serialNumbers[hex.EncodeToString(userSki)] = userSerial
 	}
 }
 
@@ -224,19 +229,23 @@ func configureOrdererPKCS11(ctx *pkcs11.Ctx, sess pkcs11.SessionHandle, network 
 
 	// Retrieves org CA cert
 	orgCAPath := network.OrdererOrgCADir(network.Organization(orgName))
-	caBytes, err := ioutil.ReadFile(filepath.Join(orgCAPath, fmt.Sprintf("ca.%s-cert.pem", domain)))
+	caBytes, err := os.ReadFile(filepath.Join(orgCAPath, fmt.Sprintf("ca.%s-cert.pem", domain)))
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Updating the orderer signcerts")
 	newOrdererPemCert := buildCert(caBytes, orgCAPath, ordererCSR, ordererSerial, ordererPubKey)
 	updateMSPFolder(network.OrdererLocalMSPDir(orderer), fmt.Sprintf("orderer.%s-cert.pem", domain), newOrdererPemCert)
-	serialNumbers[hex.EncodeToString(skiForKey(ordererPubKey))] = ordererSerial
+	ordererSki, err := skiForKey(ordererPubKey)
+	Expect(err).NotTo(HaveOccurred())
+	serialNumbers[hex.EncodeToString(ordererSki)] = ordererSerial
 
 	By("Updating the orderer admin user signcerts")
 	newAdminPemCert := buildCert(caBytes, orgCAPath, adminCSR, adminSerial, adminPubKey)
 	orgAdminMSPPath := network.OrdererUserMSPDir(orderer, "Admin")
 	updateMSPFolder(orgAdminMSPPath, fmt.Sprintf("Admin@%s-cert.pem", domain), newAdminPemCert)
-	serialNumbers[hex.EncodeToString(skiForKey(adminPubKey))] = adminSerial
+	adminSki, err := skiForKey(adminPubKey)
+	Expect(err).NotTo(HaveOccurred())
+	serialNumbers[hex.EncodeToString(adminSki)] = adminSerial
 }
 
 // Creates pkcs11 context and session
@@ -317,7 +326,7 @@ func buildCert(caBytes []byte, org1CAPath string, csr *x509.CertificateRequest, 
 	caCert, err := x509.ParseCertificate(pemBlock.Bytes)
 	Expect(err).NotTo(HaveOccurred())
 
-	keyBytes, err := ioutil.ReadFile(filepath.Join(org1CAPath, "priv_sk"))
+	keyBytes, err := os.ReadFile(filepath.Join(org1CAPath, "priv_sk"))
 	Expect(err).NotTo(HaveOccurred())
 
 	pemBlock, _ = pem.Decode(keyBytes)
@@ -352,7 +361,7 @@ func buildCert(caBytes []byte, org1CAPath string, csr *x509.CertificateRequest, 
 // Overwrites existing cert and removes private key from keystore folder
 func updateMSPFolder(path, certName string, cert []byte) {
 	// Overwrite existing certificate with new certificate
-	err := ioutil.WriteFile(filepath.Join(path, "signcerts", certName), cert, 0o644)
+	err := os.WriteFile(filepath.Join(path, "signcerts", certName), cert, 0o644)
 	Expect(err).NotTo(HaveOccurred())
 
 	// delete the existing private key - this is stored in the hsm
@@ -421,10 +430,10 @@ func generateKeyPair(ctx *pkcs11.Ctx, sess pkcs11.SessionHandle) (*ecdsa.PublicK
 
 	// convert pub key to ansi types
 	nistCurve := elliptic.P256()
-	x, y := elliptic.Unmarshal(nistCurve, ecpt)
-	if x == nil {
-		Expect(x).NotTo(BeNil(), "Failed Unmarshalling Public Key")
-	}
+	x := new(big.Int).SetBytes(ecpt[1:33])
+	y := new(big.Int).SetBytes(ecpt[33:])
+	Expect(x).NotTo(BeNil(), "Failed Unmarshalling Public Key")
+	Expect(y).NotTo(BeNil(), "Failed Unmarshalling Public Key")
 
 	pubKey := &ecdsa.PublicKey{Curve: nistCurve, X: x, Y: y}
 
@@ -469,9 +478,14 @@ func ecPoint(pkcs11lib *pkcs11.Ctx, session pkcs11.SessionHandle, key pkcs11.Obj
 	return ecpt
 }
 
-func skiForKey(pk *ecdsa.PublicKey) []byte {
-	ski := sha256.Sum256(elliptic.Marshal(pk.Curve, pk.X, pk.Y))
-	return ski[:]
+func skiForKey(pk *ecdsa.PublicKey) ([]byte, error) {
+	ecdhKey, err := pk.ECDH()
+	if err != nil {
+		return nil, fmt.Errorf("public key transition failed: %w", err)
+	}
+
+	ski := sha256.Sum256(ecdhKey.Bytes())
+	return ski[:], nil
 }
 
 func updateKeyIdentifiers(pctx *pkcs11.Ctx, sess pkcs11.SessionHandle, serialNumbers map[string]*big.Int) {

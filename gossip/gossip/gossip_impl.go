@@ -15,8 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	pg "github.com/hyperledger/fabric-protos-go/gossip"
+	pg "github.com/hyperledger/fabric-protos-go-apiv2/gossip"
 	"github.com/hyperledger/fabric/gossip/api"
 	"github.com/hyperledger/fabric/gossip/comm"
 	"github.com/hyperledger/fabric/gossip/common"
@@ -32,6 +31,7 @@ import (
 	"github.com/hyperledger/fabric/gossip/util"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -96,8 +96,24 @@ func New(conf *Config, s *grpc.Server, sa api.SecurityAdvisor,
 	g.stateInfoMsgStore = g.newStateInfoMsgStore()
 
 	g.idMapper = identity.NewIdentityMapper(mcs, selfIdentity, func(pkiID common.PKIidType, identity api.PeerIdentityType) {
-		g.comm.CloseConn(&comm.RemotePeer{PKIID: pkiID})
+		// Identities which are purged from the membership store
+		// should not be communicated with anymore, as the purge is done
+		// because the identity of the corresponding PKI-ID not being
+		// valid anymore, such as it being expired.
+
+		// Remove the identity from the identity replication
+		// for it to not be replicated any further.
 		g.certPuller.Remove(string(pkiID))
+
+		// Notify the identity switch channel of the communication layer,
+		// which in turn is used to notify the discovery layer
+		// about the PKI-ID not being relevant anymore, which causes
+		// the discovery layer to purge it from memory.
+		// Afterwards, gossip never communicates with this PKI-ID.
+		g.comm.IdentitySwitch() <- pkiID
+
+		// Cease communication with the node, if connected to it.
+		g.comm.CloseConn(&comm.RemotePeer{PKIID: pkiID})
 	}, sa)
 
 	commConfig := comm.CommConfig{
@@ -1012,7 +1028,7 @@ func (sa *discoverySecurityAdapter) ValidateAliveMsg(m *protoext.SignedGossipMes
 
 	// If identity is included inside AliveMessage
 	if am.Identity != nil {
-		identity = api.PeerIdentityType(am.Identity)
+		identity = am.Identity
 		claimedPKIID := am.Membership.PkiId
 		err := sa.idMapper.Put(claimedPKIID, identity)
 		if err != nil {
@@ -1066,7 +1082,7 @@ func (sa *discoverySecurityAdapter) validateAliveMsgSignature(m *protoext.Signed
 	am := m.GetAliveMsg()
 	// At this point we got the certificate of the peer, proceed to verifying the AliveMessage
 	verifier := func(peerIdentity []byte, signature, message []byte) error {
-		return sa.mcs.Verify(api.PeerIdentityType(peerIdentity), signature, message)
+		return sa.mcs.Verify(peerIdentity, signature, message)
 	}
 
 	// We verify the signature on the message
@@ -1106,7 +1122,7 @@ func (g *Node) createCertStorePuller() pull.Mediator {
 			g.logger.Warning("Invalid PeerIdentity:", idMsg)
 			return
 		}
-		err := g.idMapper.Put(common.PKIidType(idMsg.PkiId), api.PeerIdentityType(idMsg.Cert))
+		err := g.idMapper.Put(idMsg.PkiId, idMsg.Cert)
 		if err != nil {
 			g.logger.Warningf("Failed associating PKI-ID with certificate: %+v", errors.WithStack(err))
 		}
@@ -1223,7 +1239,7 @@ func (g *Node) validateLeadershipMessage(msg *protoext.SignedGossipMessage) erro
 
 func (g *Node) validateStateInfoMsg(msg *protoext.SignedGossipMessage) error {
 	verifier := func(identity []byte, signature, message []byte) error {
-		pkiID := g.idMapper.GetPKIidOfCert(api.PeerIdentityType(identity))
+		pkiID := g.idMapper.GetPKIidOfCert(identity)
 		if pkiID == nil {
 			return errors.New("PKI-ID not found in identity mapper")
 		}
@@ -1336,7 +1352,7 @@ func extractChannels(a []*emittedGossipMessage) []common.ChannelID {
 			return bytes.Equal(a.(common.ChannelID), b.(common.ChannelID))
 		}
 		if util.IndexInSlice(channels, common.ChannelID(m.Channel), sameChan) == -1 {
-			channels = append(channels, common.ChannelID(m.Channel))
+			channels = append(channels, m.Channel)
 		}
 	}
 	return channels

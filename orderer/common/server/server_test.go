@@ -7,20 +7,19 @@ SPDX-License-Identifier: Apache-2.0
 package server
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	ab "github.com/hyperledger/fabric-protos-go/orderer"
-	localconfig "github.com/hyperledger/fabric/orderer/common/localconfig"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
+	"github.com/hyperledger/fabric/orderer/common/localconfig"
 	"github.com/hyperledger/fabric/orderer/common/multichannel"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestBroadcastNoPanic(t *testing.T) {
@@ -98,7 +97,7 @@ func testMsgTrace(handler func(dir string, msg *cb.Envelope) recvr, t *testing.T
 				return nil
 			}
 			require.Nil(t, fileData, "Should only be one file")
-			fileData, err = ioutil.ReadFile(path)
+			fileData, err = os.ReadFile(path)
 			require.Nil(t, err)
 			return nil
 		})

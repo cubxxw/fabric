@@ -10,19 +10,19 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"sync/atomic"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
-	gp "github.com/hyperledger/fabric-protos-go/gateway"
-	ab "github.com/hyperledger/fabric-protos-go/orderer"
-	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	gp "github.com/hyperledger/fabric-protos-go-apiv2/gateway"
+	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/protoutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // Submit will send the signed transaction to the ordering service. The response indicates whether the transaction was
@@ -50,7 +50,11 @@ func (gs *Server) Submit(ctx context.Context, request *gp.SubmitRequest) (*gp.Su
 
 	logger := logger.With("txID", request.TransactionId)
 	config := gs.getChannelConfig(request.ChannelId)
-	if config.ChannelConfig().Capabilities().ConsensusTypeBFT() {
+	oc, ok := config.OrdererConfig()
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "failed to create block deliverer for channel `%s`, missing OrdererConfig", request.ChannelId)
+	}
+	if oc.ConsensusType() == "BFT" {
 		return gs.submitBFT(ctx, orderers, txn, clusterSize, logger)
 	} else {
 		return gs.submitNonBFT(ctx, orderers, txn, logger)
@@ -116,7 +120,12 @@ func (gs *Server) broadcastToAll(orderers []*orderer, txn *common.Envelope, wait
 				waitCh <- nil
 			} else {
 				logger.Warnw("Unsuccessful response sending transaction to orderer", "endpoint", ord.logAddress, "status", status, "info", response.GetInfo())
-				waitCh <- errorDetail(ord.endpointConfig, fmt.Sprintf("received unsuccessful response from orderer: status=%s, info=%s", common.Status_name[int32(status)], response.GetInfo()))
+				if status == common.Status_SERVICE_UNAVAILABLE && response.GetInfo() == "failed to submit request: request already exists" {
+					// the orderer already has this transaction - let it continue
+					waitCh <- nil
+				} else {
+					waitCh <- errorDetail(ord.endpointConfig, fmt.Sprintf("received unsuccessful response from orderer: status=%s, info=%s", common.Status_name[int32(status)], response.GetInfo()))
+				}
 			}
 		}(o)
 	}
@@ -146,7 +155,7 @@ func (gs *Server) broadcastToAll(orderers []*orderer, txn *common.Envelope, wait
 // Note that this is different from N-f (the number of correct nodes), when N=3f+3. That is, we have two extra nodes
 // above the minimum required to tolerate f failures.
 func computeBFTQuorum(N uint64) (Q int, F int) {
-	F = int((int(N) - 1) / 3)
+	F = (int(N) - 1) / 3
 	Q = int(math.Ceil((float64(N) + float64(F) + 1) / 2.0))
 	return
 }

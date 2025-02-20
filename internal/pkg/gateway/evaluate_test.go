@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/hyperledger/fabric-protos-go/gateway"
-	"github.com/hyperledger/fabric-protos-go/peer"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/gateway"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/gossip/common"
 	gdiscovery "github.com/hyperledger/fabric/gossip/discovery"
 	"github.com/hyperledger/fabric/internal/pkg/gateway/mocks"
@@ -340,6 +340,15 @@ func TestEvaluate(t *testing.T) {
 			},
 			errCode:   codes.DeadlineExceeded,
 			errString: "evaluate timeout expired",
+		},
+		{
+			name: "uses local host ledger height",
+			members: []networkMember{
+				{"id2", "peer1:8051", "msp1", 6},
+				{"id1", "localhost:7051", "msp1", 5},
+			},
+			localLedgerHeight: 7,
+			expectedEndorsers: []string{"localhost:7051"},
 		},
 	}
 	for _, tt := range tests {

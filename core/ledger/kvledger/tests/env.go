@@ -8,17 +8,16 @@ package tests
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp/sw"
+	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
 	"github.com/hyperledger/fabric/core/chaincode/implicitcollection"
 	"github.com/hyperledger/fabric/core/chaincode/lifecycle"
 	"github.com/hyperledger/fabric/core/container/externalbuilder"
@@ -207,7 +206,7 @@ func populateMissingsWithTestDefaults(t *testing.T, initializer *ledgermgmt.Init
 	}
 
 	if initializer.Config == nil || initializer.Config.RootFSPath == "" {
-		rootPath, err := ioutil.TempDir("/tmp", "ledgersData")
+		rootPath, err := os.MkdirTemp("/tmp", "ledgersData")
 		if err != nil {
 			t.Fatalf("Failed to create root directory: %s", err)
 		}
@@ -318,7 +317,7 @@ type membershipInfoProvider struct {
 
 func (p *membershipInfoProvider) AmMemberOf(channelName string, collectionPolicyConfig *peer.CollectionPolicyConfig) (bool, error) {
 	members := convertFromMemberOrgsPolicy(collectionPolicyConfig)
-	fmt.Printf("memebers = %s\n", members)
+	fmt.Printf("members = %s\n", members)
 	for _, m := range members {
 		if m == p.myOrgMSPID {
 			return true, nil

@@ -9,22 +9,22 @@ package kvledger
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-config/protolator"
-	cb "github.com/hyperledger/fabric-protos-go/common"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/channelconfig"
 	"github.com/hyperledger/fabric/common/configtx/test"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/hyperledger/fabric/core/ledger/mock"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestNamespacesAndCollections(t *testing.T) {
@@ -280,7 +280,7 @@ func getEnvelopeFromConfig(channelName string, config *cb.Config) *cb.Envelope {
 // createTestOrgGroups returns application org ConfigGroups based on test_configblock.json.
 // The config block contains the following organizations(MSPIDs): org1(Org1MSP) and org2(Org2MSP)
 func createTestOrgGroups(t *testing.T) map[string]*cb.ConfigGroup {
-	blockData, err := ioutil.ReadFile("testdata/test_configblock.json")
+	blockData, err := os.ReadFile("testdata/test_configblock.json")
 	require.NoError(t, err)
 	block := &cb.Block{}
 	require.NoError(t, protolator.DeepUnmarshalJSON(bytes.NewBuffer(blockData), block))

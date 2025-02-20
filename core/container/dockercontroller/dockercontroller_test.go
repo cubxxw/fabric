@@ -15,15 +15,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"testing"
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/common/flogging/floggingtest"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
-	"github.com/hyperledger/fabric/common/metrics/metricsfakes"
+	"github.com/hyperledger/fabric-lib-go/common/flogging/floggingtest"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/metricsfakes"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/chaincode/persistence"
 	"github.com/hyperledger/fabric/core/container/ccintf"
@@ -441,7 +440,7 @@ func TestBuild(t *testing.T) {
 		ccType, path, codePackageStream := fakePlatformBuilder.GenerateDockerBuildArgsForCall(0)
 		require.Equal(t, "TYPE", ccType)
 		require.Equal(t, "path", path)
-		codePackage, err := ioutil.ReadAll(codePackageStream)
+		codePackage, err := io.ReadAll(codePackageStream)
 		require.NoError(t, err)
 		require.Equal(t, []byte("code-package"), codePackage)
 	})
